@@ -1,0 +1,41 @@
+---
+title: What the cache is for
+description: What an oxabl cache does for a team and for CI, what it can and can't see, and what runs today.
+sidebar:
+  order: 0
+  label: What it is for
+---
+
+An oxabl cache keeps compiled ABL so it's compiled once. CI compiles a project and fills the cache. Every other CI job and every developer machine then fetches what's already compiled and compiles only what changed.
+
+The server runs today. The part of oxabl that fills and reads a cache ships with `oxabl build`, which isn't released yet. This page says what a cache does, then [what runs today](#what-runs-today).
+
+## Who does what
+
+- **CI fills it.** A CI job with write access builds the project and stores what it compiled. Those entries are the ones everyone trusts.
+- **Everyone reads it.** Other CI jobs and developers fetch those entries instead of compiling. A developer can also keep a personal space for their own builds, which only they read.
+- **An operator runs the server.** That's you, if you self-host. The operator creates tenants, sets quotas and mints the first tokens with [`oxabl-cache-admin`](/cache/operate/admin/). A tenant then manages its own caches and members.
+
+## What the server can see
+
+Nothing it could use. Everything stored on the server is encrypted before it leaves your machines, and the keys stay with your team. The operator, and anyone who gets at the server's disk or bucket, sees only ciphertext.
+
+Before a machine uses an entry, it checks the entry's signature against the members your team trusts, so a server can't hand you something your CI didn't build. An entry that fails the check is treated as missing, and the machine compiles that unit itself.
+
+## What runs today
+
+| Part | Status |
+| --- | --- |
+| The cache server, `oxabl-cache-server` | Runs today. One machine with SQLite and local disk, or several nodes on Postgres and an S3-compatible bucket. |
+| The operator command line, `oxabl-cache-admin` | Runs today. See [`oxabl-cache-admin`](/cache/operate/admin/). |
+| The container image | Builds from the repository today. A published image isn't available yet. See the [quick start](/cache/self-host/quick-start/). |
+| oxabl using the cache in a build | Not released. It arrives with `oxabl build`. |
+| The member command line, `oxabl-cache` | Not released. It will create members, sign in and rotate keys. |
+| A hosted cache service | Not available yet. |
+
+So today you can stand up a cache, create tenants and hand out tokens, ready for when `oxabl build` ships. These pages say when the rest is released.
+
+## Next
+
+- [Self-host quick start](/cache/self-host/quick-start/): a cache on one machine, with the container image.
+- [Install oxabl](/toolchain/get-started/install/): the toolchain the cache serves.

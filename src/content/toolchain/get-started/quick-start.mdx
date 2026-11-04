@@ -1,0 +1,112 @@
+---
+title: Quick start
+description: Check and format an ABL project in five minutes, from no configuration to a clean run.
+sidebar:
+  order: 2
+---
+
+By the end of this page, `oxabl check` passes on a project and you know what each part of its output means. You need oxabl [installed](/toolchain/get-started/install/) and a project with ABL source. The examples use a small project, `acme`, with one program and one include file:
+
+```text
+acme/
+└── src/
+    ├── include/
+    │   └── order-vars.i
+    └── orders/
+        └── post-order.p
+```
+
+## 1. Run a first check
+
+From the project's root, point `oxabl check` at the source directory:
+
+```sh
+oxabl check src
+```
+
+```text
+src/orders/post-order.p:2:1: warning[PREPROC007]: unresolvable include 'include/order-vars.i' — symbols it declares cannot be checked
+    2 | {include/order-vars.i}
+  help: add its directory to include_paths (oxabl.toml [workspace.sources]) or pass -I
+src/orders/post-order.p:8:48: error[LINT0001]: undefined symbol `piOrder`
+    8 | for each order no-lock where order.order-num = piOrder:
+src/orders/post-order.p:13:21: error[LINT0001]: undefined symbol `piOrder`
+   13 | message "no order " piOrder view-as alert-box.
+src/orders/post-order.p:5:17: warning[LINT0002]: unused variable `cUnused`
+    5 | define variable cUnused as character no-undo.
+
+Files that would be reformatted:
+  src/orders/post-order.p
+1 file would be reformatted — run `oxabl format` to fix.
+```
+
+`check` reports two things:
+
+- **Findings**, one per problem: the file, line and column, the severity, the code, and the line it's about. Some carry a `help:` line that says what to do.
+- **Formatting drift**: the files `oxabl format` would change.
+
+The exit code is `1`, because there is something to report.
+
+The two `LINT0001` errors aren't real. `piOrder` is defined in `order-vars.i`, and oxabl couldn't find that include, as the `PREPROC007` warning says. oxabl reads includes the way the AVM reads them from `PROPATH`, so it needs to know where to look.
+
+## 2. Tell oxabl where your includes are
+
+Create `oxabl.toml` in the project's root:
+
+```toml title="oxabl.toml"
+[workspace]
+name = "acme"
+
+[workspace.sources]
+include_paths = ["src"]
+```
+
+`include_paths` are relative to `oxabl.toml` and searched in order, first match wins, like a `PROPATH`. oxabl looks for `oxabl.toml` in the directory you check and in every directory above it, so `oxabl check .` run in `src/orders` uses this file too.
+
+```sh
+oxabl check src
+```
+
+```text
+src/orders/post-order.p:5:17: warning[LINT0002]: unused variable `cUnused`
+    5 | define variable cUnused as character no-undo.
+
+Files that would be reformatted:
+  src/orders/post-order.p
+1 file would be reformatted — run `oxabl format` to fix.
+```
+
+The include resolves, and the undefined symbols are gone.
+
+## 3. Fix the layout
+
+```sh
+oxabl format src
+```
+
+`format` rewrites the files in place and prints nothing when it succeeds. It changes layout only: indentation, runs of blank lines, comment placement. In `post-order.p` it indented the `message` statement under its `if`:
+
+```abl
+if iCount = 0 then
+    message "no order " piOrder view-as alert-box.
+```
+
+## 4. Fix the finding
+
+Delete the line that defines `cUnused`, then check again:
+
+```sh
+oxabl check src
+```
+
+```text
+checked 1 file: no findings, no drift
+```
+
+Exit code `0`. This is the run you want before every commit and in CI.
+
+## Next
+
+- [`oxabl check`](/toolchain/commands/check/): every flag, the JSON output and the exit codes.
+- [`oxabl.toml` reference](/toolchain/configure/oxabl-toml/): schema files, encodings, lint rules and style.
+- [Run oxabl in CI](/toolchain/workflows/ci/): make the check a required step.

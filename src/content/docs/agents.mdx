@@ -1,0 +1,50 @@
+---
+title: Use these docs from an agent
+description: Point a coding agent at llms.txt, a page's Markdown copy, or the docs' MCP server.
+---
+
+These docs are published for agents as well as people, in three forms. Use whichever your agent supports.
+
+| Form | Where | Use it when |
+| --- | --- | --- |
+| An index | `/llms.txt` | The agent can fetch URLs. It lists every page with a one-line description and a link to its Markdown. |
+| One page as Markdown | the page's URL plus `index.md`, such as `/toolchain/commands/check/index.md` | The agent needs one page, without the site around it. Every page has a **View as Markdown** link. |
+| Everything at once | `/llms-full.txt` | The agent should read the whole site in one request. |
+| An MCP server | `/mcp` | The agent speaks the Model Context Protocol. It needs no key. |
+
+## Connect to the MCP server
+
+The server speaks Streamable HTTP at `/mcp`. Add it to your agent the way its docs describe for a remote MCP server; the **Copy MCP URL** link on every page copies the address. It's read-only and has two tools:
+
+- **`list_pages`** lists pages with their title, URL, Markdown URL, description and section. Pass `section` to list one product: `toolchain` or `cache`.
+- **`get_page`** returns one page as Markdown. Pass the `url` that `list_pages` gave, or a path such as `/toolchain/commands/check/`.
+
+There's no search tool. The agent lists a section, picks a page by its description, and reads it.
+
+To try the tools by hand, use the MCP Inspector. This run is against a local copy of the site (`npm run dev` in the docs repository); against the published site, use its address. The URLs in the answer are always the published ones.
+
+```sh
+npx @modelcontextprotocol/inspector --cli http://localhost:4321/mcp \
+  --transport http --method tools/call --tool-name list_pages --tool-arg section=cache
+```
+
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"pages\":[{\"title\":\"What the cache is for\",\"url\":\"https://docs.oxabl.org/cache/\",\"markdownUrl\":\"https://docs.oxabl.org/cache/index.md\",\"description\":\"What an oxabl cache does for a team and for CI, what it can and can't see, and what runs today.\",\"section\":\"cache\"},{\"title\":\"oxabl-cache-admin\",\"url\":\"https://docs.oxabl.org/cache/operate/admin/\",\"markdownUrl\":\"https://docs.oxabl.org/cache/operate/admin/index.md\",\"description\":\"Every operator command of oxabl-cache-admin, with its flags, output and exit codes.\",\"section\":\"cache\"},{\"title\":\"Self-host\",\"url\":\"https://docs.oxabl.org/cache/self-host/\",\"markdownUrl\":\"https://docs.oxabl.org/cache/self-host/index.md\",\"description\":\"Run an oxabl cache on your own machines.\",\"section\":\"cache\"},{\"title\":\"Self-host quick start\",\"url\":\"https://docs.oxabl.org/cache/self-host/quick-start/\",\"markdownUrl\":\"https://docs.oxabl.org/cache/self-host/quick-start/index.md\",\"description\":\"Run an oxabl cache on one machine with the container image, create the first tenant, and check that it's healthy.\",\"section\":\"cache\"}]}"
+    }
+  ]
+}
+```
+
+## How an agent uses it
+
+Say a CI job fails and its log ends with `oxabl check` exiting `2`. An agent with the MCP server connected can:
+
+1. Call `list_pages` with `section: "toolchain"` and find **oxabl check** by its description.
+2. Call `get_page` on it and read the exit code table: `2` is a usage or configuration error, such as an `oxabl.toml` it can't use.
+3. Call `get_page` on **oxabl.toml reference** for the key the error names, fix the file, and run the check again.
+
+The agent reads the same pages you do, from the same build, so its answer matches the docs for the version that's published.

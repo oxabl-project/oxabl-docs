@@ -1,0 +1,8 @@
+[workspace]
+name = "acme"
+
+[workspace.sources]
+include_paths = ["src"]
+
+[workspace.schema]
+files = ["schema/sports.df"]

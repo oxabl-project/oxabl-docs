@@ -1,0 +1,25 @@
+---
+title: Toolchain
+description: oxabl checks, lints and formats Progress ABL from the command line, your editor and CI.
+sidebar:
+  order: 0
+  label: Overview
+---
+
+oxabl is one binary, `oxabl`, for ABL code. It doesn't need the AVM or a database connection: it reads your source, your include files and, if you have them, your `.df` schema files.
+
+| Command | What it does |
+| --- | --- |
+| [`oxabl check`](/toolchain/commands/check/) | Lints a tree and reports formatting drift. The gate for commits and CI. |
+| `oxabl format` | Fixes layout in place, or checks it without writing. |
+| `oxabl explain` | Shows which tables each unit reads and writes. |
+| `oxabl lsp` | Runs the language server, for diagnostics and format-on-save in your editor. |
+| `oxabl schema` | Prints the JSON Schema of `oxabl.toml`, for completion in your editor. |
+
+A project's settings live in one file, [`oxabl.toml`](/toolchain/configure/oxabl-toml/), at the root of the project.
+
+## Is oxabl ready?
+
+Nearly. `check` and `format` are safe to run on any tree: a file oxabl can't parse, or can't format faithfully, is left exactly as it was, and the run says why. There are still few lint rules, the stricter rule groups are in preview, and the formatter fixes layout only.
+
+Start with the [Install](/toolchain/get-started/install/) page.

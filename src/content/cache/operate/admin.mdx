@@ -1,0 +1,319 @@
+---
+title: oxabl-cache-admin
+description: Every operator command of oxabl-cache-admin, with its flags, output and exit codes.
+sidebar:
+  order: 1
+  label: oxabl-cache-admin reference
+---
+
+`oxabl-cache-admin` is the operator's command line. It talks to one server's admin API with an operator token: it creates and changes tenants, mints tokens, exports usage and checks health. Tenants then manage their own caches and members.
+
+```sh
+oxabl-cache-admin [OPTIONS] <COMMAND>
+```
+
+It's in the server's container image. To run it on another machine, build it from the repository with `cargo build --release --locked -p oxabl-cache-admin`.
+
+## Connect to a server
+
+| Option | Environment variable | What it does |
+| --- | --- | --- |
+| `--server <URL>` | `OXABL_CACHE_ADMIN_SERVER` | The admin API, such as `http://127.0.0.1:9091`. |
+| `--token-file <PATH>` | `OXABL_CACHE_ADMIN_TOKEN_FILE` | A file holding the operator token. |
+| `--ca-file <PATH>` | | A PEM file of extra CA certificates to trust, added to the system's. |
+| `--json` | | Prints JSON instead of text. |
+
+The options go before or after the command. The token is only ever read from a file: there's no flag for the token itself, so it never shows up in your shell history or in a process list. `--token-file /dev/stdin` reads it from standard input.
+
+The examples on this page set both variables first:
+
+```sh
+export OXABL_CACHE_ADMIN_SERVER=http://127.0.0.1:9091
+export OXABL_CACHE_ADMIN_TOKEN_FILE=$PWD/operator-token
+```
+
+The admin API listens on `127.0.0.1:9091` by default. Keep it off the public network. A region or a second deployment has its own admin API, so you point `--server` at it; there's no region flag.
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Done. |
+| `1` | The server refused. The error code and message are printed, such as `conflict: exists`. |
+| `2` | A usage or configuration error, such as a missing `--server` or a bad size. |
+| `3` | The server can't be reached: connection, TLS or transport. |
+
+```text
+$ oxabl-cache-admin health
+oxabl-cache-admin: no server: pass --server or set OXABL_CACHE_ADMIN_SERVER
+$ oxabl-cache-admin health --server http://127.0.0.1:9091
+oxabl-cache-admin: no token: pass --token-file
+$ oxabl-cache-admin health --server http://127.0.0.1:9191 --token-file operator-token
+oxabl-cache-admin: server unreachable: error sending request: client error (Connect): tcp connect error: Connection refused (os error 111)
+$ oxabl-cache-admin health --server http://127.0.0.1:9091 --token-file bad.tok
+oxabl-cache-admin: unauthenticated: unauthenticated
+```
+
+A `not_found: not found` from `health` usually means `--server` points at the public API (`8443`) instead of the admin API.
+
+## health
+
+Reports whether the database and the store work, and whether this node runs garbage collection.
+
+```sh
+oxabl-cache-admin health
+```
+
+```text
+metadata   ok
+store      ok
+gc_leader  true
+```
+
+```sh
+oxabl-cache-admin health --json
+```
+
+```json
+{"gc_leader":true,"metadata":"ok","store":"ok"}
+```
+
+## tenant
+
+A tenant is one customer of the cache: a team or a company, with its own quotas, caches and members. Every command that takes `<TENANT>` accepts its id (`t_…`) or its name.
+
+### tenant create
+
+```sh
+oxabl-cache-admin tenant create <NAME> [--hard-quota <SIZE>] [--egress <SIZE>] [--rate <N>] [--burst <N>]
+```
+
+| Option | What it sets |
+| --- | --- |
+| `--hard-quota <SIZE>` | The most data the tenant's caches can hold, such as `20GiB`. |
+| `--egress <SIZE>` | The most data the tenant can download a month, such as `500GiB`. |
+| `--rate <N>` | Requests per second. The default is `50`. |
+| `--burst <N>` | The request burst size. The default is `200`. |
+
+```sh
+oxabl-cache-admin tenant create acme --hard-quota 20GiB --egress 500GiB
+```
+
+```text
+id            t_6y5t0tqs0bjqccs5cnn168hm14
+name          acme
+status        active
+hard_bytes    21474836480
+egress_bytes  536870912000
+rate          50
+burst         200
+created_at    1793740837
+```
+
+A limit you don't set is unlimited and shows as `-`. Running the same command again is a no-op that prints the tenant. The same name with different limits is refused:
+
+```text
+oxabl-cache-admin: conflict: exists
+```
+
+Sizes take binary units only: `B`, `KiB`, `MiB`, `GiB` or `TiB`.
+
+```text
+oxabl-cache-admin: invalid size '20GB': use an integer with B, KiB, MiB, GiB or TiB, or 'none'
+```
+
+### tenant list
+
+```sh
+oxabl-cache-admin tenant list
+```
+
+```text
+id                            name  status  hard_bytes   egress_bytes  rate  burst
+t_6y5t0tqs0bjqccs5cnn168hm14  acme  active  21474836480  536870912000  50    200
+```
+
+### tenant show
+
+```sh
+oxabl-cache-admin tenant show acme --json
+```
+
+```json
+{"burst":200,"created_at":1793740837,"egress_bytes":536870912000,"hard_bytes":21474836480,"id":"t_6y5t0tqs0bjqccs5cnn168hm14","name":"acme","rate":50,"status":"active"}
+```
+
+### tenant quota
+
+Changes a tenant's limits. The flags are the same as for `create`; a flag you leave out keeps its value, and `none` removes a limit.
+
+```sh
+oxabl-cache-admin tenant quota acme --rate 100 --egress none
+```
+
+```text
+id            t_6y5t0tqs0bjqccs5cnn168hm14
+name          acme
+status        active
+hard_bytes    21474836480
+egress_bytes  -
+rate          100
+burst         200
+created_at    1793740837
+```
+
+### tenant suspend and tenant resume
+
+`suspend` refuses every data request of the tenant until you `resume` it. Both print the tenant with its new `status`, `suspended` or `active`.
+
+```sh
+oxabl-cache-admin tenant suspend acme
+oxabl-cache-admin tenant resume acme
+```
+
+### tenant delete
+
+Deletes a tenant and all of its caches.
+
+```sh
+oxabl-cache-admin tenant delete sports
+```
+
+```text
+deleted t_4t8442shw8ecjday1cqf6ht9ev
+```
+
+After that, the tenant is gone:
+
+```text
+oxabl-cache-admin: not_found: no tenant 'sports'
+```
+
+There's no operator command to delete one cache. That belongs to the tenant.
+
+### tenant bootstrap-admin
+
+Registers the tenant's first human administrator, by the issuer and subject of their sign-in with an OpenID Connect identity provider.
+
+```sh
+oxabl-cache-admin tenant bootstrap-admin acme --issuer https://accounts.google.com --subject 104729000000000000001
+```
+
+```text
+id  p_3fan0y5h97qjxn9tjymsjqvppm
+```
+
+The server fetches the issuer's discovery document to check it. An issuer it can't reach is refused:
+
+```text
+oxabl-cache-admin: bad_request: the issuer could not be verified
+```
+
+## token create
+
+Mints a token for a tenant and prints its secret once. Hand it to the tenant through a secure channel.
+
+```sh
+oxabl-cache-admin token create --tenant <TENANT> [--expires <DAYS>d] [--name <LABEL>] [--scopes tenant:admin]
+```
+
+| Option | What it does |
+| --- | --- |
+| `--tenant <TENANT>` | The tenant, by id or name. Required. |
+| `--expires <DAYS>d` | Lifetime in whole days, such as `30d`. Without it, the server's default applies. |
+| `--name <LABEL>` | A label stored with the token. The default is `operator`. |
+| `--scopes tenant:admin` | The only scope an operator can mint, and the default. Other scopes come from the tenant's own API. |
+
+```sh
+oxabl-cache-admin token create --tenant acme --expires 30d > acme-admin-token
+```
+
+```text title="acme-admin-token"
+id          yezjdv5n30d039n9
+expires_at  1796332844
+token       oxc_<the secret, shown once>
+```
+
+## operator-token
+
+Operator tokens are what `oxabl-cache-admin` itself uses. `oxabl-cache-server init` mints the first one; mint more here.
+
+### operator-token create
+
+```sh
+oxabl-cache-admin operator-token create [--expires <DAYS>d] [--name <LABEL>] > second-operator-token
+```
+
+```text title="second-operator-token"
+id          yte2r9snjk11yymp
+expires_at  1801516849
+token       oxo_<the secret, shown once>
+```
+
+### operator-token list
+
+```sh
+oxabl-cache-admin operator-token list
+```
+
+```text
+id                name       created_at  expires_at  revoked_at
+gracmfxahe4csv7a  bootstrap  1793740828  1825276828  -
+yte2r9snjk11yymp  backup     1793740849  1801516849  -
+```
+
+### operator-token revoke
+
+Revokes a token at once, by the id that `create` and `list` print.
+
+```sh
+oxabl-cache-admin operator-token revoke yte2r9snjk11yymp
+```
+
+```text
+revoked yte2r9snjk11yymp
+```
+
+The last valid operator token can't be revoked, because `init` never mints another one. Create a second token first:
+
+```text
+oxabl-cache-admin: conflict: last_operator_token
+```
+
+## usage export
+
+Exports one calendar month of usage, in UTC, for billing.
+
+```sh
+oxabl-cache-admin usage export --month <YYYY-MM> [--format csv|json]
+```
+
+The CSV has the header `month,tenant,cache,metric,value`, then one row per tenant, cache and metric, sorted in that order. `tenant` and `cache` are ids. The metrics are `stored_byte_days`, `ingress_bytes`, `egress_bytes`, `requests`, `lookup_ids`, `hits`, `entries_committed` and `compaction_bytes`.
+
+```sh
+oxabl-cache-admin usage export --month 2026-11 --format json
+```
+
+```json
+{"month":"2026-11","usage":[]}
+```
+
+Use `--format json` for JSON here. The global `--json` flag doesn't change this command's output; it still prints CSV.
+
+```text
+oxabl-cache-admin: invalid month '11-2026': use YYYY-MM
+```
+
+## cache scrub
+
+Re-reads and re-checks every stored pack of one cache now, by cache id (`c_…`).
+
+```sh
+oxabl-cache-admin cache scrub <CACHE>
+```
+
+```text
+oxabl-cache-admin: not_found: not found
+```
+
+Tenants create caches through their own API, so this is for a cache a tenant has reported a problem with.

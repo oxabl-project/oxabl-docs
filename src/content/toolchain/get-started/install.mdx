@@ -1,0 +1,78 @@
+---
+title: Install
+description: Install oxabl with Cargo, check that it runs, and update or remove it.
+sidebar:
+  order: 1
+---
+
+oxabl is one binary, `oxabl`. It's published on [crates.io](https://crates.io/crates/oxabl), and you install it with Cargo, Rust's package manager. There are no prebuilt downloads yet.
+
+## Before you start
+
+You need Rust and Cargo. If `cargo --version` doesn't print a version, install them from [rustup.rs](https://rustup.rs). rustup puts Cargo's binaries in `~/.cargo/bin` and adds that directory to your `PATH`.
+
+oxabl's own CI builds and tests it on Linux. Windows and macOS builds aren't tested in CI yet.
+
+## Install oxabl
+
+```sh
+cargo install oxabl --locked
+```
+
+Cargo downloads the source and compiles it with about 140 dependencies, so the first install takes a while. `--locked` builds with the exact dependency versions the release was tested with. The last line names the version:
+
+```text
+   Installed package `oxabl v3.0.2` (executable `oxabl`)
+```
+
+## Check that it runs
+
+```sh
+oxabl --help
+```
+
+```text
+High-performance tooling for Progress ABL
+
+Usage: oxabl <COMMAND>
+
+Commands:
+  check    Lint ABL source and report formatting drift — the one pre-commit gate
+  explain  Show direct database effects and transitive summaries of each unit
+  format   Format ABL source: fix layout (indentation, blank-line runs, comment placement) in place, or check/print without writing
+  lsp      Run the language server over stdio (LSP), publishing live diagnostics
+  schema   Emit the JSON Schema for `oxabl.toml` to stdout
+  help     Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+```
+
+`oxabl` has no `--version` flag yet. Cargo knows which version it installed:
+
+```sh
+cargo install --list
+```
+
+```text
+oxabl v3.0.2:
+    oxabl
+```
+
+## Update
+
+Run the install command again. Cargo replaces `oxabl` when crates.io has a newer release, and otherwise leaves it alone:
+
+```text
+     Ignored package `oxabl v3.0.2` is already installed, use --force to override
+```
+
+## Remove
+
+```sh
+cargo uninstall oxabl
+```
+
+## Next
+
+[Quick start](/toolchain/get-started/quick-start/): check and format a project in five minutes.

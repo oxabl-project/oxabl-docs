@@ -1,0 +1,265 @@
+---
+title: oxabl.toml reference
+description: Every key of oxabl.toml, with its type, default and allowed values, and what it does today.
+sidebar:
+  order: 1
+  label: oxabl.toml reference
+---
+
+`oxabl.toml` holds a project's settings. Put it at the root of the project. Every command looks for it in the directory it works on and in each directory above it, and uses the first one it finds. Paths in the file are relative to the file.
+
+Every table is optional except `[workspace]`, which needs a `name`. A key you leave out takes its default.
+
+```toml title="oxabl.toml"
+[workspace]
+name = "acme"
+
+[workspace.sources]
+include_paths = ["src"]
+encoding = "windows-1252"
+
+[workspace.schema]
+files = ["schema/sports.df"]
+
+[workspace.preprocessor]
+proversion = "12.8"
+databases = ["sports"]
+
+[workspace.lint]
+enable = ["strict.locks"]
+unused-variable = "info"
+
+[[workspace.lint.overrides]]
+files = ["src/legacy/**"]
+disable = ["strict"]
+
+[workspace.style]
+indent_size = 2
+keyword_case = "Uppercase"
+```
+
+## When the file has a mistake
+
+Parsing is strict: a key oxabl doesn't know, or a value of the wrong type, is an error.
+
+- `oxabl check` refuses to run and exits `2`, so a mistake can't turn into a pass.
+- `oxabl format` prints the same message as a `warning:`, then formats with the default style.
+
+```text
+error: failed to parse oxabl.toml: TOML parse error at line 1, column 1
+  |
+1 | [workspace]
+  | ^^^^^^^^^^^
+missing field `name`
+```
+
+The exceptions are rule and group names in `[workspace.lint]`: an unknown one is a warning, that entry is ignored, and the rest of the table applies.
+
+For completion and validation while you edit the file, `oxabl schema` prints its JSON Schema.
+
+## `[workspace]`
+
+| Key | Type | Default | What it does |
+| --- | --- | --- | --- |
+| `name` | string | required | The project's name. |
+
+## `[workspace.sources]`
+
+Where oxabl finds your code, and how it reads it.
+
+| Key | Type | Default | What it does |
+| --- | --- | --- | --- |
+| `include_paths` | list of paths | `[]` | Where to look for include files, classes and `RUN` targets, in order. The first match wins, like a `PROPATH`. `-I` on the command line adds to it. |
+| `root_relative_include_paths` | list of paths | `[]` | Paths searched first, relative to the directory of each program. `[".", "rf"]` makes a program in `src/app` search `src/app` and `src/app/rf` before `include_paths`. |
+| `root_extensions` | list of strings | `["p", "w", "cls", "v"]` | The extensions a directory walk checks, without the dot, in any case. The list replaces the default, so keep the ones you still need. `i` is refused with a warning, because an include file is never checked on its own. |
+| `run_extensions` | list of strings | `["p", "w"]` | The extensions tried, in order, for a `RUN` target written without one (`RUN post-order`). |
+| `case_insensitive_lookup` | boolean | `false` | Also finds a file whose name differs in case from the one in the source, such as `RUN lib/shiporder.p` for `lib/ShipOrder.p`. For a tree written on Windows and checked on Linux. It costs more on every miss. |
+| `encoding` | `"utf-8"`, `"windows-1252"` or `"iso-8859-1"` | `"utf-8"` | How every file is decoded: programs, includes, classes and `.df` files. `oxabl format` writes a file back in the same encoding. A file with a UTF-8 byte order mark is always read as UTF-8. |
+| `fallback_encoding` | same values, or unset | unset | With `encoding = "utf-8"`, the encoding for a file that isn't valid UTF-8. For a tree that mixes the two. |
+| `directories` | list of paths | `[]` | Accepted, but no command reads it today. `oxabl check` checks the path you give it. |
+
+`encoding` also accepts `utf8`, `cp1252` and `latin1`. Without an `encoding` that fits, a single-byte file can't be read:
+
+```text
+error: cannot read src/app/latin.p: not valid UTF-8 (invalid byte at offset 55); set `[workspace.sources] encoding` for a single-byte source
+```
+
+oxabl only looks where it's told. With no `include_paths`, it doesn't report names from other files as undefined, because it hasn't looked. With paths set, a `RUN` target, `USING` import or `NEW` that none of them supplies is `LINT0001`:
+
+```text
+src/app/caller.p:2:5: error[LINT0001]: undefined symbol `lib/missing.p`: no file on the configured search paths declares it
+    2 | run lib/missing.p.
+  help: check `[workspace.sources].include_paths` in `oxabl.toml`, or pass the directory with `-I`; oxabl only searches the paths it is given
+```
+
+## `[workspace.schema]`
+
+| Key | Type | Default | What it does |
+| --- | --- | --- | --- |
+| `files` | list of paths | `[]` | `.df` schema dump files, or directories of them. With a schema, oxabl checks table and field names (`LINT0003`) and runs the strict rules that need to know which tables are in the database. `--schema` replaces this list for one run. |
+
+A file that can't be read is a warning, and the run goes on without it:
+
+```text
+warning: schema: [SCHEMA0001] cannot read schema file `nosuch.df`: No such file or directory (os error 2)
+```
+
+## `[workspace.preprocessor]`
+
+The AVM answers some preprocessor names from the machine that compiles the code. oxabl has no such machine, so you describe it here, and every `&IF` that reads one of these names is decided against it. The keys are written with hyphens.
+
+| Key | Type | Default | What it does |
+| --- | --- | --- | --- |
+| `opsys` | string | `"UNIX"` | `{&OPSYS}` and the `OPSYS` function: `"UNIX"` or `"WIN32"`. |
+| `window-system` | string | `"TTY"` | `{&WINDOW-SYSTEM}`: `"TTY"` or `"MS-WINDOWS"`. |
+| `batch-mode` | boolean | `true` | `{&BATCH-MODE}`: `yes` or `no`. |
+| `process-architecture` | integer | `64` | `{&PROCESS-ARCHITECTURE}`: `32` or `64`. |
+| `proversion` | string, or unset | unset | `{&PROVERSION}` and the `PROVERSION` function, such as `"12.8"`. |
+| `databases` | list of strings, or unset | unset | The logical names of the databases connected at compile time, in connection order. `CONNECTED`, `DBTYPE` and `LDBNAME` answer from it. `[]` means none. |
+| `database-types` | table | `{}` | `DBTYPE` by logical name, such as `{ stock = "ORACLE" }`. A listed database not named here is `PROGRESS`. |
+
+`proversion` has no default because a tool can't guess it. Until you set it, an `&IF` that reads it is decided as if it were empty, and oxabl says so:
+
+```text
+src/lib/env.p:1:1: warning[PREPROC009]: predefined name '{&PROVERSION}' has no value — the condition is decided as if it were empty
+    1 | &IF PROVERSION >= "12" &THEN
+  help: set `proversion` under [workspace.preprocessor] in oxabl.toml
+```
+
+Without `databases`, the file names in `[workspace.schema]` stand in for the logical names (`schema/ledger.df` connects `ledger`), as a partial list. With neither, a condition that asks about a database is a guess, and oxabl reports `PREPROC010`. Neither warning changes the exit code of `check`.
+
+## `[workspace.lint]`
+
+Which rules run, and at what severity.
+
+| Key | Type | Default | What it does |
+| --- | --- | --- | --- |
+| `enable` | list of group names | `[]` | Turns groups on. `"strict"` turns on every `strict.*` group. |
+| `disable` | list of group names | `[]` | Turns groups off. Applied after `enable`. |
+| `<rule> = "<severity>"` | severity | the rule's default | Sets one rule's severity, by name (`unused-variable`) or code (`LINT0002`). A severity turns the rule on, even when its group is off. |
+| `overrides` | list of tables | `[]` | Settings for some files only. See below. |
+
+A severity is `"off"`, `"hint"`, `"info"`, `"warn"` (or `"warning"`) or `"error"`. Every severity except `off` fails `oxabl check`.
+
+The `default` group is always on and can't be turned off as a group; set its rules to `off` one by one. The `strict.*` groups are off until you enable them, and their rules are in preview.
+
+### Overrides
+
+```toml
+[[workspace.lint.overrides]]
+files = ["src/legacy/**", "src/old/report.p"]
+disable = ["strict"]
+undefined-symbol = "warn"
+```
+
+| Key | Type | What it does |
+| --- | --- | --- |
+| `files` | list of globs | The files it applies to, relative to `oxabl.toml`, written with `/`, matched without regard to case. `*` stays in one directory, `**` crosses directories, and a directory matches every file under it. An override without `files` applies to nothing and is reported. |
+| `enable`, `disable`, `<rule>` | as above | Applied to those files. |
+
+Settings apply lowest first: the rule's default, then `[workspace.lint]`, then each override whose `files` match, in the order they're written. Put broad patterns before narrow ones. Within one table, a rule's own setting beats its group's, and `disable` beats `enable`.
+
+### Rules
+
+| Code | Name | Group | Default | Reports |
+| --- | --- | --- | --- | --- |
+| `LINT0001` | `undefined-symbol` | `default` | error | A name that resolves to nothing in scope. |
+| `LINT0002` | `unused-variable` | `default` | warning | A variable or parameter that nothing references. |
+| `LINT0003` | `unknown-table-or-field` | `default` | warning | A table, field or sequence the loaded schema doesn't declare. |
+| `LINT0004` | `type-mismatch-assignment` | `default` | warning | An assignment whose value type doesn't fit the target. |
+| `LINT0005` | `block-var-used-outside` | `default` | info | A block-defined variable read outside its block before it's set. |
+| `LINT0006` | `assigned-but-never-read` | `default` | warning | A variable that's written but never read. |
+| `CL001` | `run-value` | `strict.calls` | warning | `RUN VALUE(...)`, which calls a procedure chosen at run time. |
+| `CL002` | `dynamic-invoke` | `strict.calls` | warning | `DYNAMIC-FUNCTION`, `DYNAMIC-INVOKE`, `DYNAMIC-NEW`, `DYNAMIC-PROPERTY` and `CALL` objects. |
+| `CL003` | `signature-mismatch` | `strict.calls` | warning | A `RUN` whose arguments differ from the callee's parameters in count, kind, mode or type. |
+| `CL004` | `unresolved-call` | `strict.calls` | warning | A `RUN` of a name that's neither a procedure of the file nor a program on the search paths. |
+| `CL005` | `shared-state` | `strict.calls` | warning | `NEW SHARED` and `SHARED` definitions. |
+| `TX001` | `implicit-transaction` | `strict.transactions` | warning | A block that's a transaction only because it updates the database. |
+| `TX002` | `procedure-wide-transaction` | `strict.transactions` | warning | A main block that's a transaction block, so the transaction spans the procedure. |
+| `TX003` | `transaction-spans-ui` | `strict.transactions` | warning | A statement that waits for the user inside a transaction. |
+| `TX004` | `transaction-spans-call` | `strict.transactions` | warning | A `RUN` inside a transaction whose callee isn't in the file. |
+| `TX005` | `scope-widened` | `strict.transactions` | warning | A reference outside a `FOR` block that raises the block's buffer scope to the procedure. |
+| `TX006` | `missing-no-undo` | `strict.transactions` | warning | A variable, parameter, temp-table or property defined without `NO-UNDO`. |
+| `LK001` | `default-lock` | `strict.locks` | warning | A database read with no lock phrase, which takes `SHARE-LOCK`. |
+| `LK002` | `lock-outlives-transaction` | `strict.locks` | warning | A record still locked after its transaction, because the buffer's scope is wider. |
+| `LK003` | `lock-upgrade-in-loop` | `strict.locks` | warning | A `NO-LOCK` read upgraded to `EXCLUSIVE-LOCK` on every iteration of a loop. |
+| `DB001` | `find-in-loop` | `strict.access` | warning | A `FIND` or `CAN-FIND` that runs once per row of a `FOR EACH` or query loop. |
+| `HD001` | `handle-not-deleted` | `strict.handles` | warning | A dynamic object that some path loses without deleting it. |
+| `HD002` | `delete-not-in-finally` | `strict.handles` | warning | A delete that an error between the create and the delete skips. |
+| `HD003` | `persistent-procedure-leak` | `strict.handles` | warning | A persistent procedure that nothing deletes. |
+| `HD004` | `memptr-not-freed` | `strict.handles` | warning | A `MEMPTR` given a size and never set back to 0. |
+| `HD005` | `missing-widget-pool` | `strict.handles` | warning | Dynamic objects created with no widget pool scoped to the procedure. |
+| `NL001` | `unknown-in-comparison` | `strict.nulls` | warning | A possibly unknown variable in an ordering comparison or condition. |
+| `NL002` | `unknown-propagation` | `strict.nulls` | warning | A possibly unknown variable in arithmetic that's stored or displayed. |
+| `NL003` | `field-after-failed-find` | `strict.nulls` | warning | A buffer field used after a `FIND ... NO-ERROR` that may have failed, with no `AVAILABLE` test. |
+| `NL004` | `nullable-db-field` | `strict.nulls` | warning | A database field that starts at `?` and isn't mandatory, used without a test for `?`. |
+
+The `strict.locks`, `strict.transactions` (except `TX003`, `TX004` and `TX006`) and `strict.access` rules report only on tables in the loaded schema, so they're quiet without one.
+
+## `[workspace.style]`
+
+How `oxabl format` lays out code. `--style` on the command line replaces this table for one run, with a preset (`oestandards` or `consultingwerk`) or a style file holding these keys at the top level.
+
+Six keys change what `oxabl format` writes today:
+
+| Key | Values | Default | What it does |
+| --- | --- | --- | --- |
+| `indent_size` | integer | `4` | Spaces per indent level. |
+| `indent_style` | `"Spaces"`, `"Tabs"` | `"Spaces"` | Indent with spaces or with tabs. |
+| `max_consecutive_blank_lines` | integer | `1` | Longer runs of blank lines are cut to this many. |
+| `keyword_case` | `"Preserve"`, `"Uppercase"`, `"Lowercase"` | `"Preserve"` | The case of keywords. |
+| `keyword_abbreviation` | `"KeepAbbreviations"`, `"AbbreviateNothing"`, `"AbbreviateEverything"` | `"KeepAbbreviations"` | `"AbbreviateNothing"` writes keywords in full (`def var` becomes `DEFINE VARIABLE`). `"AbbreviateEverything"` has no effect yet. |
+| `end_with_type` | boolean | `false` | Adds the block type to `END`, such as `END PROCEDURE.` |
+
+With `keyword_case = "Preserve"`, `"AbbreviateNothing"` and `end_with_type` write the words they add in uppercase:
+
+```abl
+DEFINE VARIABLE i as INTEGER no-undo.
+```
+
+The other keys are accepted and validated, so a style file written for them works, but neither `oxabl format` nor `oxabl check` acts on them yet. `max_line_length` and `wrap_long_lines` are among them: a long line stays as long as it was.
+
+| Key | Values | Default |
+| --- | --- | --- |
+| `and_or_placement` | `"EndOfLine"`, `"BeginningOfLine"` | `"EndOfLine"` |
+| `blank_lines_between_sections` | boolean | `false` |
+| `buffer_naming` | `"Unspecified"`, `"BPrefix"`, `"RoleTable"` | `"Unspecified"` |
+| `class_naming` | `"Unspecified"`, `"SuffixBaseClass"` | `"Unspecified"` |
+| `class_structure_order` | list of strings | `[]` |
+| `comment_style` | `"Either"`, `"BlockComment"`, `"SlashSlash"` | `"Either"` |
+| `disallow_commented_code` | boolean | `false` |
+| `disallow_unnecessary_blocks` | boolean | `false` |
+| `do_placement` | `"SameLine"`, `"NewLine"` | `"SameLine"` |
+| `dot_colon_same_line` | boolean | `false` |
+| `file_name_casing` | `"Unspecified"`, `"LowerCamelCase"` | `"Unspecified"` |
+| `first_param_same_line` | boolean | `true` |
+| `global_prefix` | one character, or unset | unset |
+| `interface_prefix` | one character, or unset | unset |
+| `max_line_length` | integer | `120` |
+| `method_case` | `"Unspecified"`, `"PascalCase"`, `"CamelCase"` | `"Unspecified"` |
+| `multi_param_threshold` | integer | `3` |
+| `named_events_on_prefix` | boolean | `false` |
+| `parameter_prefix` | `"None"`, `"IpOpIop"`, `"PLowercase"` | `"None"` |
+| `period_placement` | `"SameLine"`, `"NewLine"` | `"SameLine"` |
+| `prefer_substitute` | `"Never"`, `"ThreeOrMore"`, `"Always"` | `"ThreeOrMore"` |
+| `procedure_structure_order` | list of strings | `[]` |
+| `require_assign_statement` | boolean | `false` |
+| `require_block_labels` | boolean | `false` |
+| `require_file_headers` | boolean | `false` |
+| `require_if_parentheses` | boolean | `false` |
+| `require_no_undo` | boolean | `false` |
+| `require_symbolic_operators` | boolean | `false` |
+| `require_this_object` | boolean | `false` |
+| `require_widget_pool` | boolean | `false` |
+| `run_in_this_procedure` | boolean | `false` |
+| `static_member_ref` | `"Unspecified"`, `"ShortName"`, `"ClassName"` | `"Unspecified"` |
+| `temp_table_in_include` | boolean | `false` |
+| `temp_table_prefix` | `"Unspecified"`, `"TtBiPdsDs"`, `"TtE"` | `"Unspecified"` |
+| `using_sort` | boolean | `false` |
+| `variable_case` | `"Unspecified"`, `"CamelCase"`, `"LowerCase"`, `"SnakeCase"` | `"Unspecified"` |
+| `variable_decl_alignment` | `"None"`, `"Tabular"` | `"None"` |
+| `variable_type_prefix` | boolean | `false` |
+| `where_placement` | `"NewLine"`, `"SameLine"` | `"NewLine"` |
+| `wrap_long_lines` | boolean | `true` |
+
+To enforce `NO-UNDO` today, use the lint rule `TX006` (`missing-no-undo`) instead of `require_no_undo`.

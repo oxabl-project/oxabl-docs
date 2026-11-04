@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "oxabl-docs",
+  "compatibility_date": "2026-11-03",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "assets": {
+    "not_found_handling": "none"
+  }
+}

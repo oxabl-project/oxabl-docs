@@ -1,0 +1,7 @@
+---
+/* The lowercase oxabl wordmark in Michroma, as on oxabl.org. The share cards
+   still draw logo.ts. */
+interface Props { class?: string }
+const { class: cls = "" } = Astro.props;
+---
+<span class:list={["font-wordmark text-[0.875rem] leading-6 text-foreground", cls]} aria-hidden="true">oxabl</span>

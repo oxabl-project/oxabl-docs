@@ -1,0 +1,5 @@
+oxabl:
+  image: rust:1.99
+  script:
+    - cargo install oxabl --locked --version 3.0.2
+    - oxabl check .

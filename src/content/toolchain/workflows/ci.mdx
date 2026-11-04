@@ -1,0 +1,95 @@
+---
+title: Run oxabl in CI
+description: Gate pull requests with oxabl check on GitHub Actions, GitLab CI or any other runner.
+sidebar:
+  order: 2
+---
+
+One step does it: `oxabl check .` exits `1` when there's a finding or a file that needs formatting, and that fails the job. This page sets it up on GitHub Actions and GitLab CI. Any runner with Cargo works the same way.
+
+Before you add the step, run `oxabl check .` locally until it passes, or record a [baseline](/toolchain/commands/check/#adopt-on-existing-code-with-a-baseline) so the gate fails only on new findings.
+
+## GitHub Actions
+
+```yaml title=".github/workflows/abl.yml"
+name: ABL
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  oxabl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Cache oxabl
+        id: cache-oxabl
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/oxabl
+          key: oxabl-3.0.2-${{ runner.os }}
+
+      - name: Install oxabl
+        if: steps.cache-oxabl.outputs.cache-hit != 'true'
+        run: cargo install oxabl --locked --version 3.0.2
+
+      - name: Check ABL
+        run: oxabl check .
+```
+
+- **Pin the version.** `--version 3.0.2` keeps every run on the same release, so a new rule can't fail a pull request that didn't change. Raise it on purpose, and change the cache key with it.
+- **Cache the binary.** Installing compiles oxabl from source. The cache keeps the compiled binary, so later runs skip the install.
+- To make the check required, add the `oxabl` job to the branch's required status checks.
+
+## GitLab CI
+
+```yaml title=".gitlab-ci.yml"
+oxabl:
+  image: rust:1.99
+  script:
+    - cargo install oxabl --locked --version 3.0.2
+    - oxabl check .
+```
+
+The `rust` image has Cargo. A failed `oxabl check` fails the job.
+
+## Any other runner
+
+Install Rust on the runner, then run the same two commands:
+
+```sh
+cargo install oxabl --locked --version 3.0.2
+oxabl check .
+```
+
+The job fails on any exit code other than `0`. `1` means a finding or formatting drift; `2` means the run itself is broken, such as a bad `oxabl.toml` or a missing baseline file. See [exit codes](/toolchain/commands/check/#exit-codes).
+
+## Keep a report
+
+`--json` writes the whole result as one document and keeps the exit code. To keep it after a failed run:
+
+```yaml
+      - name: Check ABL
+        run: oxabl check . --json > oxabl-report.json
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: oxabl-report
+          path: oxabl-report.json
+```
+
+The [JSON shape](/toolchain/commands/check/#json-output) isn't a stable contract yet, so check its `version` in anything that reads it.
+
+## Use `check`, not `format --check`
+
+`oxabl format --check` also exits `1` when a file would change, but it's not a safe gate. With an `oxabl.toml` it can't read, it prints a warning, formats with the default style, and can pass. `oxabl check` refuses to run on that file and exits `2`, so the job fails and says why.
+
+## Next
+
+- [`oxabl check`](/toolchain/commands/check/): every flag and the exit codes.
+- [`oxabl.toml` reference](/toolchain/configure/oxabl-toml/): rule groups, severities and per-directory overrides.

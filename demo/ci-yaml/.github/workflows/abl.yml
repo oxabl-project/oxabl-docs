@@ -1,0 +1,26 @@
+name: ABL
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  oxabl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Cache oxabl
+        id: cache-oxabl
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/oxabl
+          key: oxabl-3.0.2-${{ runner.os }}
+
+      - name: Install oxabl
+        if: steps.cache-oxabl.outputs.cache-hit != 'true'
+        run: cargo install oxabl --locked --version 3.0.2
+
+      - name: Check ABL
+        run: oxabl check .

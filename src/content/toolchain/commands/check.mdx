@@ -1,0 +1,198 @@
+---
+title: oxabl check
+description: Lint a tree of ABL and report formatting drift in one run. Every flag, the output, and the exit codes.
+sidebar:
+  order: 1
+---
+
+`oxabl check` lints ABL source and reports the files `oxabl format` would change. It exits `1` when either has something to say, so the same command works before a commit and in CI.
+
+```sh
+oxabl check [OPTIONS] <PATH>
+```
+
+`PATH` is a directory or one file. For a directory, `check` reads every file with a root extension (`.p`, `.w`, `.cls` and `.v` by default, in any case; see [`root_extensions`](/toolchain/configure/oxabl-toml/#workspacesources)). A file you name is always checked, whatever its extension.
+
+`check` reads `oxabl.toml` from the directory of `PATH` or the nearest directory above it.
+
+## Read the output
+
+```text
+src/orders/ship-order.p:4:12: warning[LK001]: `FIND` reads `order` with no lock phrase, so it takes SHARE-LOCK, the default
+    4 | find first order where order.order-num = 1.
+  help: Nothing changes the record later in its scope: add `NO-LOCK`.
+```
+
+Each finding is the file, line and column, the severity, the code in brackets, and the message. Below it is the line it's about, and often a `help:` line that says what to do.
+
+After the findings comes formatting drift:
+
+```text
+Files that would be reformatted:
+  src/orders/post-order.p
+1 file would be reformatted — run `oxabl format` to fix.
+```
+
+When there's nothing to report, `check` prints one line:
+
+```text
+checked 2 files: no findings, no drift
+```
+
+Every finding counts toward the exit code, whatever its severity: `error`, `warning`, `info` and `hint` all exit `1`. To keep a rule out of the gate, set it to `off` in [`[workspace.lint]`](/toolchain/configure/oxabl-toml/#workspacelint).
+
+Preprocessor and schema warnings are different. `PREPROC007` (an include oxabl can't find), `PREPROC009`, `PREPROC010` and `SCHEMA0001` (a schema file it can't read) are printed but don't change the exit code. An include it can't find usually shows up as `LINT0001` undefined symbols too, and those do.
+
+A file oxabl can't parse fails the run with `PARSE001` findings, and is never reformatted:
+
+```text
+src/orders/broken.p:2:1: error[PARSE001]: Expected '.' to end statement
+    2 | if then x = .
+src/orders/broken.p:2:4: error[PARSE001]: Unexpected token Then
+    2 | if then x = .
+src/orders/broken.p: file has parse errors; left unchanged (no partial formatting)
+```
+
+## Options
+
+| Option | What it does |
+| --- | --- |
+| `-I`, `--include-path <DIR>` | Adds a directory to search for includes, classes and `RUN` targets. Repeat it for more. Added to `include_paths` from `oxabl.toml`. |
+| `--schema <PATH>` | A `.df` schema file or a directory of them. Replaces `[workspace.schema]` for this run. Turns on the unknown table and field rule (`LINT0003`) and the strict rules that need a schema. |
+| `--no-preprocess` | Doesn't expand includes or evaluate `&IF`. Faster, but every name an include defines is reported as undefined. |
+| `--no-lint` | Hides lint findings. Parse errors (`PARSE001`) are still reported and still fail the run. |
+| `--no-format` | Skips the formatting check. Reports findings only. |
+| `--baseline <FILE>` | Reports only findings that aren't in the baseline file. See [Adopt on existing code](#adopt-on-existing-code-with-a-baseline). |
+| `--update-baseline` | Writes every current finding to the `--baseline` file and reports none of them. Needs `--baseline`; not with `--no-lint`. |
+| `--include-findings` | Also reports findings inside include files, for each program that includes them. Not with `--baseline`. |
+| `-j`, `--jobs <N>` | Checks `N` files at once. The default is the number of cores. The output is the same at every value. |
+| `--watch` | Checks once, then re-checks what changes. See [Watch while you edit](#watch-while-you-edit). Not with `--json` or `--baseline`. |
+| `--json` | Prints one JSON report instead of text. See [JSON output](#json-output). |
+
+## Include files
+
+By default, `check` reports findings in the programs it checks, not in the include files they expand. An include file is often a fragment that doesn't parse or resolve on its own, so its own findings would mostly be noise.
+
+With `--include-findings`, `check` also reports what it finds inside each include, at the include's own path and line, with a note naming the program it was checked through:
+
+```text
+  note: in the compilation unit of src/orders/post-order.p, not a workspace-wide result; reached through src/orders/post-order.p:2:1
+```
+
+"Unused" in such a finding means unused in that one program. Another program that includes the same file may use the variable. These findings count toward the exit code.
+
+## Adopt on existing code with a baseline
+
+A baseline records today's findings so the gate fails only on new ones. Record it once:
+
+```sh
+oxabl check src --baseline oxabl-baseline.json --update-baseline
+```
+
+```text
+baseline: updated oxabl-baseline.json (1 added, 0 removed)
+checked 2 files: no findings, no drift
+```
+
+Commit `oxabl-baseline.json`, and check against it from then on:
+
+```sh
+oxabl check src --baseline oxabl-baseline.json
+```
+
+```text
+baseline: 0 new, 1 baselined, 0 stale
+checked 2 files: no findings, no drift
+```
+
+`stale` counts entries for findings that have since been fixed. They don't fail the run; `--update-baseline` removes them.
+
+A baselined finding is matched by its rule, its file and the text of its line, not by line number, so edits elsewhere in the file don't break the match. Formatting drift is never baselined: run `oxabl format` once instead.
+
+## Watch while you edit
+
+```sh
+oxabl check src --no-format --watch
+```
+
+```text
+src/orders/post-order.p:5:17: warning[LINT0002]: unused variable `cUnused`
+    5 | define variable cUnused as character no-undo.
+checked 3 files: 1 with findings
+watching for changes, Ctrl-C to stop
+src/orders/post-order.p:6:1: warning[LINT0006]: value assigned to variable `cUnused` is never read
+    6 | cUnused = "x".
+rechecked 1 file: 1 changed
+```
+
+After the first run, `check` re-checks the files you change and the files that depend on them, and prints only files whose findings changed. A change to `oxabl.toml` or a `.df` file re-checks everything. Ctrl-C stops it with exit code `0`.
+
+## JSON output
+
+```sh
+oxabl check src --no-format --json
+```
+
+```json
+{
+  "version": 3,
+  "files_checked": 2,
+  "lint_enabled": true,
+  "diagnostics": [
+    {
+      "path": "src/orders/post-order.p",
+      "code": "LINT0002",
+      "severity": "warning",
+      "source": "lint",
+      "message": "unused variable `cUnused`",
+      "span": {
+        "start": 132,
+        "end": 139
+      },
+      "start": {
+        "byte": 132,
+        "line": 5,
+        "column": 17
+      },
+      "end": {
+        "byte": 139,
+        "line": 5,
+        "column": 24
+      }
+    }
+  ],
+  "format_enabled": false,
+  "format": {
+    "drifted": [],
+    "drifted_count": 0
+  },
+  "preproc": [],
+  "unjudged_symbols": 0,
+  "failures": []
+}
+```
+
+The exit code is the same as for text. With `--baseline`, the report also has a `baseline` key with the counts, and `diagnostics` holds only new findings. With `--include-findings`, it has an `include_diagnostics` array when there are any.
+
+The shape isn't a stable contract yet. `version` changes when it does, so check it in a script that reads the report.
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | No findings and no formatting drift. |
+| `1` | At least one finding, a file that would be reformatted, or a file that couldn't be read or analyzed. |
+| `2` | A usage or configuration error: a path that doesn't exist, flags that can't be combined, a missing or malformed baseline, or an `oxabl.toml` that can't be used. |
+| `6` | With `--json`: the report couldn't be written. |
+
+`check` refuses to run on an `oxabl.toml` it can't use, including one with a key it doesn't know:
+
+```text
+error: failed to parse oxabl.toml: TOML parse error at line 19, column 1
+   |
+19 | indent_sise = 2
+   | ^^^^^^^^^^^
+unknown field `indent_sise`, expected one of `keyword_case`, `keyword_abbreviation`, `require_symbolic_operators`, `indent_size`, `indent_style`, `do_placement`, `dot_colon_same_line`, `period_placement`, `where_placement`, `and_or_placement`, `first_param_same_line`, `multi_param_threshold`, `max_line_length`, `wrap_long_lines`, `blank_lines_between_sections`, `max_consecutive_blank_lines`, `end_with_type`, `using_sort`, `require_block_labels`, `disallow_unnecessary_blocks`, `require_assign_statement`, `prefer_substitute`, `run_in_this_procedure`, `require_if_parentheses`, `variable_case`, `method_case`, `variable_type_prefix`, `global_prefix`, `parameter_prefix`, `buffer_naming`, `temp_table_prefix`, `class_naming`, `interface_prefix`, `file_name_casing`, `require_no_undo`, `require_this_object`, `static_member_ref`, `require_file_headers`, `require_widget_pool`, `temp_table_in_include`, `named_events_on_prefix`, `disallow_commented_code`, `variable_decl_alignment`, `comment_style`, `class_structure_order`, `procedure_structure_order`
+```
+
+It doesn't fall back to defaults, because the defaults would ignore your rule settings and could pass a run that should fail. An unknown rule name in `[workspace.lint]` is only a warning, ``warning: lint: unknown rule `unused-varible` ``: that entry is ignored and the rest applies.

@@ -1,0 +1,5 @@
+[workspace]
+name = "acme"
+
+[workspace.sources]
+include_paths = ["src"]
