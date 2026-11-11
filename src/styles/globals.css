@@ -705,43 +705,6 @@ body:not(:has([data-mobile-sidebar])) [data-menu-btn] {
 	display: none;
 }
 
-/* ---- View transitions ---- */
-
-/* Scoped to <main transition:name="nb-content"> only — chrome snap-swaps
-   via the root rule below so the visual field doesn't shift on nav. */
-@media (prefers-reduced-motion: no-preference) {
-	::view-transition-old(nb-content) {
-		animation: nb-content-out 100ms cubic-bezier(0.32, 0.72, 0, 1) both;
-	}
-	::view-transition-new(nb-content) {
-		animation: nb-content-in 100ms cubic-bezier(0.32, 0.72, 0, 1) both;
-	}
-
-	::view-transition-old(root),
-	::view-transition-new(root) {
-		animation: none;
-	}
-
-	@keyframes nb-content-out {
-		from { opacity: 1; }
-		to   { opacity: 0; }
-	}
-
-	@keyframes nb-content-in {
-		from { opacity: 0; transform: translateY(4px); }
-		to   { opacity: 1; transform: translateY(0); }
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	::view-transition-old(nb-content),
-	::view-transition-new(nb-content),
-	::view-transition-old(root),
-	::view-transition-new(root) {
-		animation: none;
-	}
-}
-
 /* Phones: the section tabs sit on a second header row. */
 @media (max-width: 47.999rem) {
 	:root:has([data-nb-header-tabs]) {
@@ -792,12 +755,17 @@ html {
 	font-weight: 400;
 }
 
-/* Law 4: nothing moves on its own. Page swaps cut, they don't fade or slide. */
-::view-transition-old(nb-content),
-::view-transition-new(nb-content),
-::view-transition-old(root),
-::view-transition-new(root) {
+/* Law 4: nothing moves on its own. Page swaps cut, they don't fade or slide.
+   Without their fades the old and the new page both stay drawn, one over the
+   other, for as long as the transition lasts (at least a frame), so the old
+   one is not drawn at all. */
+::view-transition-group(*),
+::view-transition-old(*),
+::view-transition-new(*) {
 	animation: none !important;
+}
+::view-transition-old(*) {
+	display: none;
 }
 
 /* Code is printed, not a terminal (law 3): ink on paper inside a 1px rule.
