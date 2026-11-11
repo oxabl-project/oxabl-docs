@@ -9,7 +9,6 @@ import Icon from "@cloudflare/nimbus-docs/components/Icon.astro";
 import BaseLayout from "./BaseLayout.astro";
 import Header from "@/components/Header.astro";
 import Logo from "@/components/Logo.astro";
-import { config } from "virtual:nimbus/config";
 import { Banner } from "@/components/ui/banner";
 import { Sidebar, SidebarFilter } from "@/components/ui/sidebar";
 import { TOC, MobileTOC } from "@/components/ui/toc";
@@ -265,10 +264,10 @@ const showToc = headings !== false && (hasToc || headings.length > 0);
                 )}
               </div>
               {hasPagination ? <slot name="pagination" /> : <Pagination prevNext={prevNext} />}
-              <footer class="chrome mt-12 flex flex-wrap gap-x-6 gap-y-3 border-t border-border py-6 text-muted-foreground">
+              <footer class="chrome mt-12 flex flex-col items-start gap-2 border-t border-border py-6 text-muted-foreground">
                 <a class="no-underline hover:text-foreground" href="https://oxabl.org">oxabl.org</a>
                 <span>MIT licence</span>
-                <span class="sm:ms-auto">Unofficial · no affiliation with Progress Software</span>
+                <span>Unofficial · no affiliation with Progress Software</span>
               </footer>
             </div>
           </main>
@@ -298,10 +297,10 @@ const showToc = headings !== false && (hasToc || headings.length > 0);
     >
       <div data-mobile-sidebar-panel class="flex h-full w-(--nb-sidebar-width) max-w-[85vw] -translate-x-full flex-col border-e border-border bg-card transition-transform duration-250 ease-out group-data-[state=open]:translate-x-0 rtl:translate-x-full rtl:group-data-[state=open]:translate-x-0 motion-reduce:transition-none">
         <div class="sticky top-0 z-[1] flex items-center justify-between border-b border-border bg-card px-4 py-3">
-          {/* The logo, as in the header; the site title stays as its accessible name. */}
-          <a href={homeHref} class="flex items-center text-foreground transition-opacity hover:opacity-70">
+          {/* The logo, as in the header: back to the product's site. */}
+          <a href="https://oxabl.org" class="flex items-center text-foreground transition-opacity hover:opacity-70">
             <Logo />
-            <span class="sr-only">{config.title}</span>
+            <span class="sr-only">oxabl.org</span>
           </a>
           <button data-close-sidebar class="flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors" aria-label="Close sidebar">
             <Icon name="ph:x" class="w-5 h-5" />
