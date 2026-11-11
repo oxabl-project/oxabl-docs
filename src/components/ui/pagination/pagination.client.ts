@@ -61,11 +61,14 @@ function initPagination(root: HTMLElement): () => void {
   });
   resize.observe(root);
 
-  // [ and ] press the matching key, then go: only while focus is in this bar,
-  // so single-key shortcuts never fire from elsewhere on the page (WCAG
-  // 2.1.4), and never with a modifier held.
+  // [ and ] press the matching key, then go, from anywhere on the page: never
+  // while typing in a field, with a dialog open, or with a modifier held.
+  const typing = (target: EventTarget | null) =>
+    target instanceof HTMLElement &&
+    (target.isContentEditable || target.closest("input, textarea, select, [contenteditable]") !== null);
   const onKey = (e: KeyboardEvent) => {
     if (e.metaKey || e.ctrlKey || e.altKey || e.repeat || e.defaultPrevented) return;
+    if (typing(e.target) || document.querySelector("dialog[open]")) return;
     const item = items.find((i) => i.dataset.nbPaginationKey === e.key);
     if (!item) return;
     e.preventDefault();
@@ -77,7 +80,7 @@ function initPagination(root: HTMLElement): () => void {
   const listens = root.dataset.keys !== "false";
   if (listens) {
     for (const item of items) item.setAttribute("aria-keyshortcuts", item.dataset.nbPaginationKey ?? "");
-    root.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey);
   }
 
   return () => {
@@ -85,7 +88,7 @@ function initPagination(root: HTMLElement): () => void {
     root.removeEventListener("pointerleave", onLeave);
     root.removeEventListener("focusout", onFocusOut);
     resize.disconnect();
-    if (listens) root.removeEventListener("keydown", onKey);
+    if (listens) document.removeEventListener("keydown", onKey);
   };
 }
 
