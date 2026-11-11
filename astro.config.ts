@@ -8,7 +8,6 @@ import cloudflare from "@astrojs/cloudflare";
 import { printedTheme } from "./src/lib/printed-theme";
 
 const nimbusConfig = defineNimbusConfig({
-  // Placeholder until the hosting and the domain are decided.
   site: "https://docs.oxabl.org",
   title: "oxabl",
   description:
@@ -35,7 +34,10 @@ export default defineConfig({
   // Without a `rendering` policy every Nimbus route is built ahead of time;
   // the server output is only for the MCP server at /mcp.
   output: "server",
-  adapter: cloudflare({ prerenderEnvironment: "node" }),
+  // No sessions and images optimised at build time, so the Worker needs no KV
+  // namespace and no Images binding.
+  session: false,
+  adapter: cloudflare({ prerenderEnvironment: "node", imageService: "compile" }),
   // Tailwind v4 via its Vite plugin (the integration Astro recommends for
   // Tailwind v4 — replaces the PostCSS plugin, which doesn't build under
   // Astro 7's Vite 8 bundler).
