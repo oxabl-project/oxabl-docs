@@ -60,6 +60,15 @@ Rules:
 - **Icons use Nimbus's `Icon` + Phosphor.** `<Icon name="ph:<glyph>" class="w-4 h-4" />` from `@cloudflare/nimbus-docs/components/Icon.astro`. Glyphs: [phosphoricons.com](https://phosphoricons.com).
 - **Don't remove `<AgentDirective />` from `BaseLayout.astro`.** It points agents at `/llms.txt`.
 
+## SEO
+
+Nimbus emits the canonical, Open Graph and Twitter tags, per-page OG cards, JSON-LD, the sitemap and `robots.txt`; `noindex` pages (the 404) drop the canonical-worthy signals. What this site adds:
+
+- Every page needs a `description` of 50+ characters that is unique and says what the page is for (name ABL or OpenEdge where it fits). `seo:check` fails on a short or repeated one.
+- `BaseLayout.astro` adds a home-only JSON-LD node that ties the docs to the product site's `https://oxabl.org/#software` and `#website` ids. Keep those ids in step with oxabl_web (`src/layouts/main.astro`).
+- `npm run seo:check` (CI runs it after the build) checks `dist/client`: canonical per page, titles, descriptions, OG cards, JSON-LD, the sitemap, `robots.txt` and the noindex 404. On `main`, CI then runs `node scripts/check-seo.mjs --live`, which waits for the edge to serve the bytes of `dist/client` and checks the real site; Cloudflare features that rewrite HTML or images would make it fail every deploy.
+- Search Console and Bing use the Domain property of `oxabl.org` (DNS TXT in Cloudflare), which covers this subdomain; submit `https://docs.oxabl.org/sitemap-index.xml`.
+
 ## Adding things
 
 | Goal | Action |

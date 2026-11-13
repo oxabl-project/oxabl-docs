@@ -27,6 +27,7 @@ jobs:
       - run: npm run build
       # After the build, which writes the lint rules to .nimbus/lint.json.
       - run: npm run lint:docs
+      - run: npm run seo:check
       # The Worker serves the pre-built pages as static assets and runs only for /mcp.
       - name: Deploy to Cloudflare
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -35,3 +36,6 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
+      - name: Check what docs.oxabl.org serves
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: node scripts/check-seo.mjs --live

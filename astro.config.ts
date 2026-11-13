@@ -11,7 +11,7 @@ const nimbusConfig = defineNimbusConfig({
   site: "https://docs.oxabl.org",
   title: "oxabl",
   description:
-    "How to install, run and configure oxabl, the toolchain for Progress ABL, and the oxabl cache.",
+    "Documentation for oxabl, a linter, formatter and language server for Progress OpenEdge ABL, and for the oxabl cache, a remote compile cache for oxabl builds.",
   locale: "en",
   github: "https://github.com/oxabl-project/oxabl",
   socialImageAlt: "oxabl documentation",

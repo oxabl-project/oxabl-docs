@@ -37,6 +37,17 @@ const {
 } = Astro.props;
 
 const lang = config.locale ?? "en";
+
+// Ties the docs to the product site's entities (oxabl.org declares both ids).
+const isHome = Astro.url.pathname === "/";
+const brandTie = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "@id": `${config.site}/#docs`,
+  url: `${config.site}/`,
+  about: { "@id": "https://oxabl.org/#software" },
+  isPartOf: { "@id": "https://oxabl.org/#website" },
+};
 // Per-page agent-index pointer. For pages in non-primary or version
 // collections, this resolves to `/<prefix>/llms.txt` (e.g. `/v0/llms.txt`
 // for a v0 docs page, `/blog/llms.txt` for a blog post). Falls back to
@@ -134,6 +145,15 @@ const resolvedMarkdownUrl =
       apiVersion={apiVersion}
       coordinate={coordinate}
     />
+    {
+      isHome && (
+        <script
+          is:inline
+          type="application/ld+json"
+          set:html={JSON.stringify(brandTie)}
+        />
+      )
+    }
     <ClientRouter />
   </head>
   <body class="min-h-screen bg-background text-foreground antialiased">
