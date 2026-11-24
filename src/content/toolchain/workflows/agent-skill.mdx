@@ -103,7 +103,7 @@ done
 
 `SKILL.md` links its reference files, which are served under `/skill/references/`. Fetch each one it names into `references/` beside it. Put the folder wherever your agent reads skills: `.agents/skills/oxabl` or `.claude/skills/oxabl` in a project, or the same folders under your home directory.
 
-A copy from the site carries the version of the oxabl release it was last synced from, which can trail the newest one by a day, so a later `oxabl skill install --check` reports it as current only when your binary is that version.
+A copy from the site carries the version of the oxabl release it was last synced from, which can trail the newest one by a day, so a later `oxabl skill install --check` reports it as current only when your binary is that version. A copy with no `.oxabl-skill.json` is still current when its files match: `--check` notes the missing manifest and doesn't fail on it, and `oxabl skill install --refresh` writes it.
 
 ## The docs as a source
 

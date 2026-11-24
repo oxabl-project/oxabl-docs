@@ -129,7 +129,7 @@ oxabl skill install --refresh
 A target is **foreign** when its `SKILL.md` has no `metadata.oxabl-version`, or has another `name`: it's someone's own skill, or an older hand-written one. `install` refuses to write it without `--force`, writes nothing at all, and exits `2`:
 
 ```text
-error: /home/you/acme/.agents/skills/oxabl holds a SKILL.md that oxabl did not install; nothing was written (use --force to replace it)
+error: /home/you/acme/.agents/skills/oxabl holds a SKILL.md that oxabl did not install; nothing was written (use --force to write the skill over it)
 ```
 
 With `--force`, oxabl writes the skill files over the foreign folder and leaves its other files alone. From then on oxabl tracks the files it wrote, and later installs remove only those.

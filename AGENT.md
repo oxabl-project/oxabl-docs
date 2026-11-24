@@ -74,10 +74,10 @@ Nimbus emits the canonical, Open Graph and Twitter tags, per-page OG cards, JSON
 The site serves the oxabl agent skill at `/skill/SKILL.md` and `/skill/references/<file>.md` (`text/markdown`, prerendered by `src/pages/skill/[...file].ts`). The files are a vendored copy in `src/skill/oxabl/` of `crates/oxabl/skill/` in the oxabl repository; never edit them by hand.
 
 - `node scripts/sync-skill.mjs --tag oxabl-vX.Y.Z` fetches the skill of a release and fills in its version (`--from <dir>` copies a local directory).
-- `npm run skill:check` (CI runs it after the build) is offline: the front matter follows the contract, every file `SKILL.md` and the references link exists, and every `/skill/...` path or `references/<x>.md` name on a docs page exists in `src/skill/oxabl`. Deploys never depend on an oxabl release.
+- `npm run skill:check` (CI runs it after the build) is offline: the front matter follows the contract (`metadata.oxabl-version` is a release `x.y.z`, so it fails while the vendored copy says `dev`), every file `SKILL.md` and the references link exists, and every `/skill/...` path or `references/<x>.md` name on a docs page exists in `src/skill/oxabl`. Deploys never depend on an oxabl release.
 - `npm run skill:check:release` compares the copy with the newest published `oxabl-vX.Y.Z` release (GitHub's own "latest" is whichever component released last, so the script reads the release list).
-- `.github/workflows/sync-skill.yml` runs daily and on `workflow_dispatch`: it syncs to the latest release and opens or updates a PR on `bot/sync-skill`. If it cannot resolve or fetch the release it fails, so a red scheduled run means the sync is not established. PRs opened with `GITHUB_TOKEN` do not trigger CI: a person re-runs the checks or pushes to the branch before merging.
-- `npm run skill:test` runs the script against a local stand-in for GitHub.
+- `.github/workflows/sync-skill.yml` runs daily and on `workflow_dispatch`: it syncs to the latest release and opens or updates a PR on `bot/sync-skill`. If it cannot resolve or fetch the release it fails, so a red scheduled run means the sync is not established. Pushes and PRs made with `GITHUB_TOKEN` do not trigger CI, so after the push it runs `gh workflow run deploy.yml --ref bot/sync-skill` (`deploy.yml` has `workflow_dispatch`; the deploy steps still run only on a push to `main`). The run reports on the branch head, which is what the PR shows. The repository setting "Allow GitHub Actions to create pull requests" must be on.
+- `npm run skill:test` runs `sync-skill.mjs` against a local stand-in for GitHub and `check-skill.mjs` against fixture folders.
 
 ## Adding things
 
