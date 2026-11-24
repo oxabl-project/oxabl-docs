@@ -92,7 +92,7 @@ oxabl skill install --agent claude
 | `--agent <agents\|claude\|all>` | Which links to make: `~/.agents/skills/oxabl`, `~/.claude/skills/oxabl`, or both. The default is `all`. The store is always installed. |
 | `--check` | Writes nothing. Exits `1` when the store is missing or stale, or a selected link is missing, foreign or points elsewhere. See [Keep it current](#keep-it-current). |
 | `--refresh` | Updates the store, and any oxabl copy that stands in for a link, only if they exist. It creates no store and no link. |
-| `--force` | Renames a foreign entry to `oxabl.bak-<UTC timestamp>` beside it, and installs. See [Entries that aren't oxabl's](#entries-that-arent-oxabls). |
+| `--force` | Moves a foreign entry to the `skill-backups` folder of oxabl's data folder, and installs. See [Entries that aren't oxabl's](#entries-that-arent-oxabls). |
 
 `--check` can't be combined with `--refresh` or `--force`, and `--refresh` can't be combined with `--force`.
 
@@ -143,7 +143,7 @@ A link you removed stays removed. `oxabl self-update` runs `oxabl skill install 
 A link is *current* when it is a symlink to the store. Anything else at a link's path is **foreign**: a real folder, a file, or a symlink to somewhere else. A store whose `SKILL.md` oxabl didn't install is foreign too. `install` refuses a foreign entry, writes nothing at all, not even the store, and exits `2`:
 
 ```text
-error: not installed by oxabl: /home/you/.claude/skills/oxabl (a directory without SKILL.md); nothing was written (use --force to rename it to oxabl.bak-<timestamp> and install)
+error: not installed by oxabl: /home/you/.claude/skills/oxabl (a directory without SKILL.md); nothing was written (use --force to move it to the skill-backups folder of oxabl's data directory and install)
 ```
 
 `--check` reports the same entry as `foreign` and exits `1`:
@@ -154,13 +154,15 @@ error: not installed by oxabl: /home/you/.claude/skills/oxabl (a directory witho
 /home/you/.claude/skills/oxabl: foreign (a directory without SKILL.md)
 ```
 
-With `--force`, oxabl renames the foreign entry to `oxabl.bak-<UTC timestamp>` beside it, never deletes it, and links:
+With `--force`, oxabl moves the foreign entry out of the skills folders, never deletes it, and links. It goes to `${XDG_DATA_HOME:-~/.local/share}/oxabl/skill-backups/<agents|claude|store>-<UTC timestamp>`, a folder oxabl creates. It can't stay beside the link, because agents read every folder under `~/.agents/skills` and `~/.claude/skills`, and a backup that holds a `SKILL.md` would load as a second skill:
 
 ```text
 /home/you/.local/share/oxabl/skills/oxabl: current
 /home/you/.agents/skills/oxabl: current
-/home/you/.claude/skills/oxabl: linked (the foreign entry is kept as /home/you/.claude/skills/oxabl.bak-20261124T210134Z)
+/home/you/.claude/skills/oxabl: linked (the foreign entry was moved to /home/you/.local/share/oxabl/skill-backups/claude-20261124T210426Z)
 ```
+
+The moves happen before anything else is written. If one fails, for example because the backup folder is on another filesystem, oxabl puts the earlier moves back, exits `2`, names the entry and asks you to move it out of the skills folder yourself. It never copies an entry and deletes the original.
 
 ## Exit codes
 

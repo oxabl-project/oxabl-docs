@@ -40,7 +40,7 @@ To make only one link, pass `--agent agents` or `--agent claude`. There is no pe
 
 **In VS Code**, run the command **oxabl: Install agent skill** (`oxabl.installSkill`) from the Command Palette. It runs `oxabl skill install` with the oxabl binary the extension uses, and a message shows the path and state of the store and of each link. It never installs the skill on its own and asks nothing else. It doesn't replace an entry that oxabl didn't install; run `oxabl skill install --force` in a terminal for that. It needs oxabl 5.10.0 or later.
 
-If a link's path already holds something that oxabl didn't install, such as your own skill called `oxabl`, `install` stops and writes nothing. `--force` renames it to `oxabl.bak-<timestamp>` beside it and installs; it never deletes it. [`oxabl skill`](/toolchain/commands/skill/) has the details.
+If a link's path already holds something that oxabl didn't install, such as your own skill called `oxabl`, `install` stops and writes nothing. `--force` moves it out of the skills folders, to `~/.local/share/oxabl/skill-backups/`, and installs; it never deletes it. It can't stay beside the link, because agents would load a backup there as a second skill. [`oxabl skill`](/toolchain/commands/skill/) has the details.
 
 For an agent that reads skills from some other folder, link the store there yourself:
 
