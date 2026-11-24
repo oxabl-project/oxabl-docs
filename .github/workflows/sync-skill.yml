@@ -1,0 +1,51 @@
+name: Sync skill
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    name: Sync the agent skill to the latest oxabl release
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fetch the skill of the latest release
+        run: |
+          set -euo pipefail
+          tag="$(node scripts/sync-skill.mjs --latest-tag)"
+          test -n "$tag"
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+          node scripts/sync-skill.mjs --tag "$tag"
+      - name: Open or update the PR
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- src/skill/oxabl && [ -z "$(git ls-files --others --exclude-standard src/skill/oxabl)" ]; then
+            echo "src/skill/oxabl is already the skill of $TAG"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B bot/sync-skill
+          git add src/skill/oxabl
+          git commit -m "chore: sync the oxabl agent skill to $TAG"
+          git push --force origin bot/sync-skill
+          if [ -z "$(gh pr list --head bot/sync-skill --state open --json number --jq '.[].number')" ]; then
+            gh pr create --head bot/sync-skill --base main \
+              --title "chore: sync the oxabl agent skill to $TAG" \
+              --body "Syncs src/skill/oxabl to the skill of $TAG. PRs opened with GITHUB_TOKEN do not trigger CI: re-run the checks or push to this branch before merging."
+          else
+            gh pr edit bot/sync-skill \
+              --title "chore: sync the oxabl agent skill to $TAG"
+          fi

@@ -74,7 +74,9 @@ Nimbus emits the canonical, Open Graph and Twitter tags, per-page OG cards, JSON
 The site serves the oxabl agent skill at `/skill/SKILL.md` and `/skill/references/<file>.md` (`text/markdown`, prerendered by `src/pages/skill/[...file].ts`). The files are a vendored copy in `src/skill/oxabl/` of `crates/oxabl/skill/` in the oxabl repository; never edit them by hand.
 
 - `node scripts/sync-skill.mjs --tag oxabl-vX.Y.Z` fetches the skill of a release and fills in its version (`--from <dir>` copies a local directory).
-- `npm run skill:check` (CI runs it after the build) compares the copy with the newest published `oxabl-vX.Y.Z` release and fails on any difference, network error or missing file. Run the sync after each oxabl release. GitHub's own "latest" release is whichever component released last, so the script reads the release list instead.
+- `npm run skill:check` (CI runs it after the build) is offline: the front matter follows the contract, every file `SKILL.md` and the references link exists, and every `/skill/...` path or `references/<x>.md` name on a docs page exists in `src/skill/oxabl`. Deploys never depend on an oxabl release.
+- `npm run skill:check:release` compares the copy with the newest published `oxabl-vX.Y.Z` release (GitHub's own "latest" is whichever component released last, so the script reads the release list).
+- `.github/workflows/sync-skill.yml` runs daily and on `workflow_dispatch`: it syncs to the latest release and opens or updates a PR on `bot/sync-skill`. If it cannot resolve or fetch the release it fails, so a red scheduled run means the sync is not established. PRs opened with `GITHUB_TOKEN` do not trigger CI: a person re-runs the checks or pushes to the branch before merging.
 - `npm run skill:test` runs the script against a local stand-in for GitHub.
 
 ## Adding things

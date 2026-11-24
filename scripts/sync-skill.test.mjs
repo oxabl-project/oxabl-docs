@@ -18,7 +18,7 @@ metadata:
   oxabl-version: dev
 ---
 
-See references/commands.md.
+See references/check.md.
 `
 const commandsSource = "# Commands\n\nSee references/more.md.\n"
 const moreSource = "# More\n"
@@ -72,7 +72,7 @@ function reset() {
   raw = {}
   for (const tag of ["oxabl-v5.10.0", "oxabl-v5.9.0"]) {
     raw[`${at(tag)}/SKILL.md`] = skillSource
-    raw[`${at(tag)}/references/commands.md`] = commandsSource
+    raw[`${at(tag)}/references/check.md`] = commandsSource
     raw[`${at(tag)}/references/more.md`] = moreSource
   }
 }
@@ -83,7 +83,7 @@ function vendor(name) {
   rmSync(dir, { recursive: true, force: true })
   mkdirSync(join(dir, "references"), { recursive: true })
   writeFileSync(join(dir, "SKILL.md"), skillSource.replace("oxabl-version: dev", "oxabl-version: 5.10.0"))
-  writeFileSync(join(dir, "references", "commands.md"), commandsSource)
+  writeFileSync(join(dir, "references", "check.md"), commandsSource)
   writeFileSync(join(dir, "references", "more.md"), moreSource)
   return dir
 }
@@ -105,6 +105,22 @@ function run(args, env = {}) {
   })
 }
 
+describe("--latest-tag", () => {
+  test("prints the newest oxabl release tag", async () => {
+    reset()
+    const { code, out } = await run(["--latest-tag"])
+    assert.equal(code, 0, out)
+    assert.equal(out.trim(), "oxabl-v5.10.0")
+  })
+
+  test("fails when no release resolves", async () => {
+    reset()
+    releases = []
+    const { code, out } = await run(["--latest-tag"])
+    assert.equal(code, 2, out)
+  })
+})
+
 describe("--check", () => {
   test("passes when the vendored copy is the newest release, ignoring other components and pre-releases", async () => {
     reset()
@@ -117,10 +133,10 @@ describe("--check", () => {
   test("fails and names the file when a vendored file differs", async () => {
     reset()
     const dest = vendor("changed")
-    writeFileSync(join(dest, "references", "commands.md"), "# Commands\n\nedited\n")
+    writeFileSync(join(dest, "references", "check.md"), "# Commands\n\nedited\n")
     const { code, out } = await run(["--check"], { OXABL_SKILL_DEST: dest })
     assert.equal(code, 1, out)
-    assert.match(out, /references\/commands\.md: differs from the release/)
+    assert.match(out, /references\/check\.md: differs from the release/)
   })
 
   test("fails on the version line", async () => {
@@ -190,9 +206,9 @@ describe("--check", () => {
   test("writes nothing", async () => {
     reset()
     const dest = vendor("readonly")
-    writeFileSync(join(dest, "references", "commands.md"), "edited\n")
+    writeFileSync(join(dest, "references", "check.md"), "edited\n")
     await run(["--check"], { OXABL_SKILL_DEST: dest })
-    assert.equal(readFileSync(join(dest, "references", "commands.md"), "utf8"), "edited\n")
+    assert.equal(readFileSync(join(dest, "references", "check.md"), "utf8"), "edited\n")
   })
 })
 
@@ -216,7 +232,7 @@ describe("--tag and --from", () => {
   test("--tag leaves the copy alone when a file cannot be fetched", async () => {
     reset()
     const dest = vendor("keep")
-    delete raw["oxabl-v5.10.0/crates/oxabl/skill/references/commands.md"]
+    delete raw["oxabl-v5.10.0/crates/oxabl/skill/references/check.md"]
     const { code } = await run(["--tag", "oxabl-v5.10.0"], { OXABL_SKILL_DEST: dest })
     assert.equal(code, 2)
     assert.equal(readFileSync(join(dest, "references", "more.md"), "utf8"), moreSource)
@@ -227,7 +243,7 @@ describe("--tag and --from", () => {
     rmSync(source, { recursive: true, force: true })
     mkdirSync(join(source, "references"), { recursive: true })
     writeFileSync(join(source, "SKILL.md"), skillSource)
-    writeFileSync(join(source, "references", "commands.md"), commandsSource)
+    writeFileSync(join(source, "references", "check.md"), commandsSource)
     const dest = vendor("from")
     const { code, out } = await run(["--from", source, "--version", "5.10.0"], { OXABL_SKILL_DEST: dest })
     assert.equal(code, 0, out)

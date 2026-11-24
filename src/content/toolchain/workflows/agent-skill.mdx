@@ -53,7 +53,7 @@ For an agent that reads skills from some other folder, install under a scratch f
 oxabl skill install --dir ~/scratch
 ```
 
-If a folder already holds a skill called `oxabl` that oxabl didn't install, `install` stops and writes nothing; `--force` replaces it. [`oxabl skill`](/toolchain/commands/skill/) has the details.
+If a folder already holds a skill called `oxabl` that oxabl didn't install, `install` stops and writes nothing; `--force` writes the skill over it and keeps the other files in the folder. [`oxabl skill`](/toolchain/commands/skill/) has the details.
 
 ## Keep it current
 
@@ -67,7 +67,7 @@ oxabl skill install --check
 
 ```text
 /home/you/acme/.agents/skills/oxabl: current
-/home/you/acme/.claude/skills/oxabl: stale (references/commands.md differs)
+/home/you/acme/.claude/skills/oxabl: stale (references/check.md differs)
 ```
 
 Add it as a step after oxabl is installed, as in [Run oxabl in CI](/toolchain/workflows/ci/):
@@ -96,12 +96,14 @@ If you can't run `oxabl skill`, or the agent runs somewhere oxabl isn't installe
 ```sh
 mkdir -p .agents/skills/oxabl/references
 curl -fsSL https://docs.oxabl.org/skill/SKILL.md -o .agents/skills/oxabl/SKILL.md
-curl -fsSL https://docs.oxabl.org/skill/references/commands.md -o .agents/skills/oxabl/references/commands.md
+for f in build check explain rules; do
+  curl -fsSL "https://docs.oxabl.org/skill/references/$f.md" -o ".agents/skills/oxabl/references/$f.md"
+done
 ```
 
 `SKILL.md` links its reference files, which are served under `/skill/references/`. Fetch each one it names into `references/` beside it. Put the folder wherever your agent reads skills: `.agents/skills/oxabl` or `.claude/skills/oxabl` in a project, or the same folders under your home directory.
 
-A copy from the site carries the version of the latest release, so a later `oxabl skill install --check` reports it as current only when your binary is that version.
+A copy from the site carries the version of the oxabl release it was last synced from, which can trail the newest one by a day, so a later `oxabl skill install --check` reports it as current only when your binary is that version.
 
 ## The docs as a source
 

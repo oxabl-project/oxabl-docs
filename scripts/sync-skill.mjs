@@ -2,6 +2,7 @@
 // at /skill/, in step with oxabl.
 //   node scripts/sync-skill.mjs --from <dir> [--version <x.y.z>]   copy a local skill directory
 //   node scripts/sync-skill.mjs --tag oxabl-vX.Y.Z                 fetch the skill of a release tag
+//   node scripts/sync-skill.mjs --latest-tag                       print the latest release tag
 //   node scripts/sync-skill.mjs --check                            compare with the latest release
 // --check writes nothing and exits 1 on a difference, 2 when it could not tell
 // (network error, no release, missing file): an unknown answer is never a pass.
@@ -29,7 +30,7 @@ class Fail extends Error {
 
 function usage() {
   throw new Fail(
-    "usage: sync-skill.mjs --from <dir> [--version <x.y.z>] | --tag oxabl-vX.Y.Z | --check"
+    "usage: sync-skill.mjs --from <dir> [--version <x.y.z>] | --tag oxabl-vX.Y.Z | --latest-tag | --check"
   )
 }
 
@@ -38,13 +39,14 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     if (arg === "--check") opts.check = true
+    else if (arg === "--latest-tag") opts.latestTag = true
     else if (arg === "--from" || arg === "--tag" || arg === "--version") {
       const value = argv[++i]
       if (!value || value.startsWith("--")) usage()
       opts[arg.slice(2)] = value
     } else usage()
   }
-  const modes = [opts.check, opts.from, opts.tag].filter(Boolean).length
+  const modes = [opts.check, opts.latestTag, opts.from, opts.tag].filter(Boolean).length
   if (modes !== 1) usage()
   if (opts.version && !opts.from) usage()
   if (opts.version && !/^\d+\.\d+\.\d+$/.test(opts.version)) {
@@ -180,6 +182,8 @@ async function main() {
     validate(files)
     write(files)
     console.log(`copied ${files.size} files from ${opts.from} to src/skill/oxabl`)
+  } else if (opts.latestTag) {
+    console.log(await latestTag())
   } else if (opts.tag) {
     const files = await fetchSkill(opts.tag)
     write(files)

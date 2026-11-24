@@ -19,7 +19,7 @@ The skill is a `SKILL.md` and a few reference files. `SKILL.md` has this front m
 ```yaml
 ---
 name: oxabl
-description: Lint, format, check, compile and analyse Progress ABL (OpenEdge) code with the oxabl CLI. ...
+description: Lint, format, analyse and compile Progress ABL (OpenEdge 4GL) code with the oxabl CLI. Use whenever you read, edit, review or refactor ABL source (.p, .w, .cls, .i, .v files) in an OpenEdge or Progress project; to lint or check it, format it, see its database effects (which tables a program reads, writes or locks), compile or build it with an OpenEdge AVM; or to set up oxabl.toml, include paths, a .df schema or a lint baseline.
 metadata:
   oxabl-version: 5.10.0
 ---
@@ -43,16 +43,19 @@ oxabl skill show --list
 
 ```text
 SKILL.md
-references/commands.md
+references/build.md
+references/check.md
+references/explain.md
+references/rules.md
 ```
 
 ```sh
-oxabl skill show references/commands.md
+oxabl skill show references/check.md
 ```
 
 | Argument | What it does |
 | --- | --- |
-| `[FILE]` | The file to print, such as `references/commands.md`. The default is `SKILL.md`. Not with `--list`. |
+| `[FILE]` | The file to print, such as `references/check.md`. The default is `SKILL.md`. Not with `--list`. |
 | `--list` | Lists the files of the skill, one per line, instead of printing one. |
 
 A file the skill doesn't have exits `2`. Use `show` to read what an agent will read, or to hand the skill to a tool that doesn't read folders.
@@ -92,11 +95,11 @@ oxabl skill install --agent claude
 | `--agent <agents\|claude\|all>` | Which target to write: `.agents/skills/oxabl`, `.claude/skills/oxabl`, or both. The default is `all`. |
 | `--check` | Writes nothing. Exits `1` when a target is missing, stale or not oxabl's. See [Keep it current](#keep-it-current). |
 | `--refresh` | Updates only the targets that already hold an oxabl copy, and creates none. |
-| `--force` | Replaces a target that oxabl didn't install. See [Targets that aren't oxabl's](#targets-that-arent-oxabls). |
+| `--force` | Writes the skill over a target that oxabl didn't install, and keeps the other files in it. See [Targets that aren't oxabl's](#targets-that-arent-oxabls). |
 
 `--check` can't be combined with `--refresh` or `--force`, and `--refresh` can't be combined with `--force`.
 
-An install replaces an oxabl copy as a whole: files in the target that the new skill doesn't have are removed, inside that folder only.
+oxabl records the files it writes in `.oxabl-skill.json` inside the target. An install replaces an oxabl copy by removing the files oxabl wrote before and the new skill no longer has, inside that folder only. A file of your own in the folder is never removed. A target that is a symlink is written through, so the real folder is updated.
 
 The VS Code extension has a command for the same install into the open workspace, **oxabl: Install agent skill in this workspace**. See [Teach your coding agent oxabl](/toolchain/workflows/agent-skill/#install-it).
 
@@ -110,7 +113,7 @@ oxabl skill install --check
 
 ```text
 /home/you/acme/.agents/skills/oxabl: current
-/home/you/acme/.claude/skills/oxabl: stale (references/commands.md differs)
+/home/you/acme/.claude/skills/oxabl: stale (references/check.md differs)
 ```
 
 `--check` writes nothing and exits `1` when any target is missing, stale or foreign, so it fits a CI job or a pre-commit hook that keeps a project's committed copy honest. To bring copies up to date without creating any new ones, run:
@@ -129,7 +132,7 @@ A target is **foreign** when its `SKILL.md` has no `metadata.oxabl-version`, or 
 error: /home/you/acme/.agents/skills/oxabl holds a SKILL.md that oxabl did not install; nothing was written (use --force to replace it)
 ```
 
-With `--force`, the foreign folder is replaced.
+With `--force`, oxabl writes the skill files over the foreign folder and leaves its other files alone. From then on oxabl tracks the files it wrote, and later installs remove only those.
 
 ## Exit codes
 
