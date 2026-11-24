@@ -1,0 +1,102 @@
+---
+title: oxabl lsp
+description: Run the oxabl language server for ABL over stdio, for live diagnostics, format on save, outline and go to definition in your editor.
+sidebar:
+  order: 5
+---
+
+`oxabl lsp` runs oxabl as a language server for ABL, speaking the Language Server Protocol over stdin and stdout. An editor starts it and talks to it; you don't run it by hand. It does the same work as [`check`](/toolchain/commands/check/) and [`format`](/toolchain/commands/format/), on the file you are editing, as you type. It needs no AVM and no database connection.
+
+```sh
+oxabl lsp
+```
+
+The command has no options.
+
+## Use it in VS Code
+
+The VS Code extension starts `oxabl lsp` for you. It isn't on the Marketplace: download `oxabl-vscode-<version>.vsix` from the newest release whose tag starts with `oxabl_vscode-v` on the [releases page](https://github.com/oxabl-project/oxabl/releases), then install it:
+
+```sh
+code --install-extension oxabl-vscode-<version>.vsix
+```
+
+The extension looks for the `oxabl` binary in the `oxabl.server.path` setting, then in `~/.local/bin`, then on your `PATH`, and offers to install it if it finds none. Open the folder that holds your `oxabl.toml`. Run **oxabl: Restart Server** after you install or update the binary. The extension's README, in the oxabl repository, lists its settings and commands.
+
+## Use it in another editor
+
+Any editor with a language server client can run it. Register the command `oxabl lsp` as the server for ABL files, over stdio. Zed, Helix, Neovim and others work this way; none has an oxabl extension yet, so you write the client configuration yourself.
+
+## What it does
+
+| Feature | LSP request |
+| --- | --- |
+| Diagnostics while you type: syntax errors and lint findings, with the severities from `oxabl.toml` | `textDocument/publishDiagnostics` |
+| Format document, so format on save | `textDocument/formatting` |
+| Document outline, breadcrumbs, go to symbol in file | `textDocument/documentSymbol` |
+| Go to symbol in workspace | `workspace/symbol` |
+| Go to definition | `textDocument/definition` |
+| Links on `{includes}`, `RUN` targets and `USING` names | `textDocument/documentLink` |
+
+Text sync is incremental, and positions are UTF-16. The server also asks the editor to watch `.p`, `.w`, `.cls`, `.v`, `.i`, `.df` and `oxabl.toml` files, so it follows changes made outside the editor.
+
+This is what a diagnostic looks like on the wire. For a program with one unused variable, the server answers a `didOpen` with:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "textDocument/publishDiagnostics",
+  "params": {
+    "diagnostics": [
+      {
+        "code": "LINT0002",
+        "message": "unused variable `cUnused`",
+        "range": {
+          "start": { "line": 0, "character": 16 },
+          "end": { "line": 0, "character": 23 }
+        },
+        "severity": 2,
+        "source": "oxabl"
+      }
+    ],
+    "uri": "file:///path/to/acme/src/orders/post-order.p",
+    "version": 1
+  }
+}
+```
+
+The codes and severities are the ones `check` reports.
+
+## What the project decides
+
+The server reads `oxabl.toml` from the workspace, and a change to it applies at once, with no restart. Includes, classes and `RUN` targets are found through [`include_paths`](/toolchain/configure/oxabl-toml/#workspacesources), and tables and fields through [`[workspace.schema]`](/toolchain/configure/oxabl-toml/#workspaceschema). Lint severities come from [`[workspace.lint]`](/toolchain/configure/oxabl-toml/#workspacelint) and formatting from [`[workspace.style]`](/toolchain/configure/oxabl-toml/#workspacestyle).
+
+Two switches under `[workspace.features]` turn parts of it off for a project:
+
+```toml title="oxabl.toml"
+[workspace]
+name = "acme"
+
+[workspace.features]
+diagnostics = false
+format = false
+```
+
+| Key | Default | When `false` |
+| --- | --- | --- |
+| `diagnostics` | `true` | The server publishes an empty list of diagnostics for each open file. |
+| `format` | `true` | Format document returns no edits. |
+
+Two cases turn both off:
+
+- **No `oxabl.toml` at all.** The server offers only what needs no setup, such as the document outline, and says nothing about it. Installing the binary for the outline doesn't start linting or reformatting code that no project configured. The CLI does the opposite: with no `oxabl.toml`, `check` and `format` run with their defaults.
+- **An `oxabl.toml` oxabl can't read.** The server sends one `window/showMessage` warning that names the problem, and offers no diagnostics and no formatting until the file is fixed. A typo doesn't turn a feature back on that you turned off.
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | The editor sent `shutdown` and `exit`. |
+| `1` | The connection closed before `initialize` or without `exit`, or the server hit an error. It says why on stderr, for example `oxabl lsp: the editor connection closed`. |
+
+The server logs to the editor through `window/logMessage`, and on stderr for the errors above.

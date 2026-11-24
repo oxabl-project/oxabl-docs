@@ -1,0 +1,138 @@
+---
+title: oxabl skill
+description: Print or install the oxabl agent skill, which teaches a coding agent to lint, format and build ABL with oxabl. Every flag and the exit codes.
+sidebar:
+  order: 7
+---
+
+**oxabl 5.10.0 and later.** Earlier versions don't have `oxabl skill`.
+
+`oxabl skill` shows or installs the oxabl **agent skill**: a small folder of instructions, in the Agent Skills format, that teaches a coding agent how to use oxabl on ABL code without exploring the CLI first. The skill is built into the `oxabl` binary, so its text always matches the commands and flags of the version you run. For what the skill is and how to set it up, see [Teach your coding agent oxabl](/toolchain/workflows/agent-skill/).
+
+```sh
+oxabl skill show [FILE]
+oxabl skill install [OPTIONS]
+```
+
+The skill is a `SKILL.md` and a few reference files. `SKILL.md` has this front matter:
+
+```yaml
+---
+name: oxabl
+description: Lint, format, check, compile and analyse Progress ABL (OpenEdge) code with the oxabl CLI. ...
+metadata:
+  oxabl-version: 5.10.0
+---
+```
+
+`name` is how an agent finds the skill, and `description` is what it reads to decide when to use it. `metadata.oxabl-version` is the version of the binary that wrote the copy. It also marks the copy as one oxabl installed, which matters for [updates](#keep-it-current).
+
+## oxabl skill show
+
+Prints a file of the skill to stdout, with the version filled in.
+
+```sh
+oxabl skill show
+```
+
+With no argument it prints `SKILL.md`. Name a file to print another one, as `--list` names it:
+
+```sh
+oxabl skill show --list
+```
+
+```text
+SKILL.md
+references/commands.md
+```
+
+```sh
+oxabl skill show references/commands.md
+```
+
+| Argument | What it does |
+| --- | --- |
+| `[FILE]` | The file to print, such as `references/commands.md`. The default is `SKILL.md`. Not with `--list`. |
+| `--list` | Lists the files of the skill, one per line, instead of printing one. |
+
+A file the skill doesn't have exits `2`. Use `show` to read what an agent will read, or to hand the skill to a tool that doesn't read folders.
+
+## oxabl skill install
+
+Copies the skill to the folders where coding agents look for it.
+
+```sh
+oxabl skill install
+```
+
+```text
+/home/you/acme/.agents/skills/oxabl: installed
+/home/you/acme/.claude/skills/oxabl: installed
+```
+
+It writes two copies, one line each:
+
+| Target | Read by |
+| --- | --- |
+| `.agents/skills/oxabl/` | Codex, pi, OpenCode, GitHub Copilot and the other agents that read `.agents/skills`. |
+| `.claude/skills/oxabl/` | Claude Code. |
+
+Both are written by default. Both are relative to a base folder: the current directory, a folder you name with `--dir`, or with `--user` your home directory, which makes the skill available in every project.
+
+```sh
+oxabl skill install --user
+oxabl skill install --dir ~/work/acme
+oxabl skill install --agent claude
+```
+
+| Option | What it does |
+| --- | --- |
+| `--user` | Installs under your home directory instead of the current one. Not with `--dir`. |
+| `--dir <DIR>` | The base folder to install under. The default is the current directory. It's the base, not the final folder: `--dir ~/work/acme` writes `~/work/acme/.agents/skills/oxabl`. For an agent that reads skills from another folder, install under a scratch folder with `--dir`, then copy the `oxabl` folder to where that agent looks. |
+| `--agent <agents\|claude\|all>` | Which target to write: `.agents/skills/oxabl`, `.claude/skills/oxabl`, or both. The default is `all`. |
+| `--check` | Writes nothing. Exits `1` when a target is missing, stale or not oxabl's. See [Keep it current](#keep-it-current). |
+| `--refresh` | Updates only the targets that already hold an oxabl copy, and creates none. |
+| `--force` | Replaces a target that oxabl didn't install. See [Targets that aren't oxabl's](#targets-that-arent-oxabls). |
+
+`--check` can't be combined with `--refresh` or `--force`, and `--refresh` can't be combined with `--force`.
+
+An install replaces an oxabl copy as a whole: files in the target that the new skill doesn't have are removed, inside that folder only.
+
+### Keep it current
+
+A copy is *current* when its files equal the skill of the binary you run. After you update oxabl, an older copy is *stale*: it still works, but it describes the older commands.
+
+```sh
+oxabl skill install --check
+```
+
+```text
+/home/you/acme/.agents/skills/oxabl: current
+/home/you/acme/.claude/skills/oxabl: stale (references/commands.md differs)
+```
+
+`--check` writes nothing and exits `1` when any target is missing, stale or foreign, so it fits a CI job or a pre-commit hook that keeps a project's committed copy honest. To bring copies up to date without creating any new ones, run:
+
+```sh
+oxabl skill install --refresh
+```
+
+`--refresh` skips a target that isn't there and a target that isn't oxabl's, and says so on its line. `oxabl self-update` runs it for the copy under your home directory after it replaces the binary, so a user-level install follows the binary on its own. A copy inside a project is yours to refresh when you update, or to check in CI.
+
+### Targets that aren't oxabl's
+
+A target is **foreign** when its `SKILL.md` has no `metadata.oxabl-version`, or has another `name`: it's someone's own skill, or an older hand-written one. `install` refuses to write it without `--force`, writes nothing at all, and exits `2`:
+
+```text
+error: /home/you/acme/.agents/skills/oxabl holds a SKILL.md that oxabl did not install; nothing was written (use --force to replace it)
+```
+
+With `--force`, the foreign folder is replaced.
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | `show` printed. `install` wrote, or found nothing to change. |
+| `1` | With `install --check`: a target is missing, stale or foreign. |
+| `2` | A usage or I/O error: a file the skill doesn't have, flags that can't be combined, a folder that can't be written, or a foreign target without `--force`. |

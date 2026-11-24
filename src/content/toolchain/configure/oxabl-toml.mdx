@@ -43,7 +43,7 @@ keyword_case = "Uppercase"
 Parsing is strict: a key oxabl doesn't know, or a value of the wrong type, is an error.
 
 - `oxabl check` refuses to run and exits `2`, so a mistake can't turn into a pass.
-- `oxabl format` prints the same message as a `warning:`, then formats with the default style.
+- `oxabl format` does the same: it exits `2` and writes nothing. `--style` skips the file.
 
 ```text
 error: failed to parse oxabl.toml: TOML parse error at line 1, column 1
