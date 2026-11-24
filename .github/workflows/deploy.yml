@@ -28,6 +28,11 @@ jobs:
       # After the build, which writes the lint rules to .nimbus/lint.json.
       - run: npm run lint:docs
       - run: npm run seo:check
+      # The served agent skill must be the one of the latest oxabl release.
+      - run: npm run skill:test
+      - run: npm run skill:check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       # The Worker serves the pre-built pages as static assets and runs only for /mcp.
       - name: Deploy to Cloudflare
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

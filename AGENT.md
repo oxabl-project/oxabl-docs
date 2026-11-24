@@ -69,6 +69,14 @@ Nimbus emits the canonical, Open Graph and Twitter tags, per-page OG cards, JSON
 - `npm run seo:check` (CI runs it after the build) checks `dist/client`: canonical per page, titles, descriptions, OG cards, JSON-LD, the sitemap, `robots.txt` and the noindex 404. On `main`, CI then runs `node scripts/check-seo.mjs --live`, which waits for the edge to serve the bytes of `dist/client` and checks the real site; Cloudflare features that rewrite HTML or images would make it fail every deploy.
 - Search Console and Bing use the Domain property of `oxabl.org` (DNS TXT in Cloudflare), which covers this subdomain; submit `https://docs.oxabl.org/sitemap-index.xml`.
 
+## The oxabl agent skill
+
+The site serves the oxabl agent skill at `/skill/SKILL.md` and `/skill/references/<file>.md` (`text/markdown`, prerendered by `src/pages/skill/[...file].ts`). The files are a vendored copy in `src/skill/oxabl/` of `crates/oxabl/skill/` in the oxabl repository; never edit them by hand.
+
+- `node scripts/sync-skill.mjs --tag oxabl-vX.Y.Z` fetches the skill of a release and fills in its version (`--from <dir>` copies a local directory).
+- `npm run skill:check` (CI runs it after the build) compares the copy with the newest published `oxabl-vX.Y.Z` release and fails on any difference, network error or missing file. Run the sync after each oxabl release. GitHub's own "latest" release is whichever component released last, so the script reads the release list instead.
+- `npm run skill:test` runs the script against a local stand-in for GitHub.
+
 ## Adding things
 
 | Goal | Action |

@@ -11,6 +11,8 @@
     "lint:docs": "nimbus-docs lint",
     "lint:docs:fix": "nimbus-docs lint --fix",
     "seo:check": "node scripts/check-seo.mjs",
+    "skill:check": "node scripts/sync-skill.mjs --check",
+    "skill:test": "node --test scripts/sync-skill.test.mjs",
     "prepreview:cf": "astro build",
     "preview:cf": "wrangler dev",
     "predeploy": "astro check && astro build",

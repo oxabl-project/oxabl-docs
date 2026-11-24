@@ -15,6 +15,8 @@ npm ci
 npm run dev       # http://localhost:4321
 npm run build     # static build in dist/
 npm run lint:docs
+npm run skill:test   # the skill sync script
+npm run skill:check  # is the served agent skill the latest oxabl release's?
 ```
 
 The pages are in `src/content/docs/`. `demo/` holds the sample projects that the
