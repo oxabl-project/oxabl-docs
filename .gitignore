@@ -21,3 +21,4 @@ pnpm-debug.log*
 .vscode/*
 !.vscode/extensions.json
 .skill-test/
+.skill-test-check/

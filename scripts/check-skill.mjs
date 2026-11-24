@@ -42,8 +42,11 @@ if (!files.has("SKILL.md")) {
     const description = /^description: (.+)$/m.exec(front)?.[1]
     if (!description) problems.push("SKILL.md front matter lacks `description`")
     else if (description.length > 1024) problems.push("SKILL.md description is over 1024 characters")
-    if (!/^metadata:\n\s+oxabl-version: \S+$/m.test(front)) {
+    const version = /^metadata:\n\s+oxabl-version: (\S+)$/m.exec(front)?.[1]
+    if (version === undefined) {
       problems.push("SKILL.md front matter lacks `metadata.oxabl-version`")
+    } else if (!/^\d+\.\d+\.\d+$/.test(version)) {
+      problems.push(`SKILL.md \`metadata.oxabl-version\` is \`${version}\`, not a release version x.y.z: sync the skill of a release`)
     }
   }
 }
