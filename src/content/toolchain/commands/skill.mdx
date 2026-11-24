@@ -62,82 +62,110 @@ A file the skill doesn't have exits `2`. Use `show` to read what an agent will r
 
 ## oxabl skill install
 
-Copies the skill to the folders where coding agents look for it.
+Installs the skill for your user, where coding agents look for it. There is no project install: one install serves every project.
 
 ```sh
 oxabl skill install
 ```
 
 ```text
-/home/you/acme/.agents/skills/oxabl: installed
-/home/you/acme/.claude/skills/oxabl: installed
+/home/you/.local/share/oxabl/skills/oxabl: installed
+/home/you/.agents/skills/oxabl: linked
+/home/you/.claude/skills/oxabl: linked
 ```
 
-It writes two copies, one line each:
+oxabl keeps one copy of the skill, the **store**, in `${XDG_DATA_HOME:-~/.local/share}/oxabl/skills/oxabl/`. That is the data folder oxabl already uses for its install record. Two links point to the store, one for each place agents read skills:
 
-| Target | Read by |
+| Link | Read by |
 | --- | --- |
-| `.agents/skills/oxabl/` | Codex, pi, OpenCode, GitHub Copilot and the other agents that read `.agents/skills`. |
-| `.claude/skills/oxabl/` | Claude Code. |
+| `~/.agents/skills/oxabl` | Codex, pi, OpenCode, GitHub Copilot and the other agents that read `.agents/skills`. |
+| `~/.claude/skills/oxabl` | Claude Code. |
 
-Both are written by default. Both are relative to a base folder: the current directory, a folder you name with `--dir`, or with `--user` your home directory, which makes the skill available in every project.
+The command prints one line for the store and one for each link, with its path and state. Both links are made by default.
 
 ```sh
-oxabl skill install --user
-oxabl skill install --dir ~/work/acme
 oxabl skill install --agent claude
 ```
 
 | Option | What it does |
 | --- | --- |
-| `--user` | Installs under your home directory instead of the current one. Not with `--dir`. |
-| `--dir <DIR>` | The base folder to install under. The default is the current directory. It's the base, not the final folder: `--dir ~/work/acme` writes `~/work/acme/.agents/skills/oxabl`. For an agent that reads skills from another folder, install under a scratch folder with `--dir`, then copy the `oxabl` folder to where that agent looks. |
-| `--agent <agents\|claude\|all>` | Which target to write: `.agents/skills/oxabl`, `.claude/skills/oxabl`, or both. The default is `all`. |
-| `--check` | Writes nothing. Exits `1` when a target is missing, stale or not oxabl's. See [Keep it current](#keep-it-current). |
-| `--refresh` | Updates only the targets that already hold an oxabl copy, and creates none. |
-| `--force` | Writes the skill over a target that oxabl didn't install, and keeps the other files in it. See [Targets that aren't oxabl's](#targets-that-arent-oxabls). |
+| `--agent <agents\|claude\|all>` | Which links to make: `~/.agents/skills/oxabl`, `~/.claude/skills/oxabl`, or both. The default is `all`. The store is always installed. |
+| `--check` | Writes nothing. Exits `1` when the store is missing or stale, or a selected link is missing, foreign or points elsewhere. See [Keep it current](#keep-it-current). |
+| `--refresh` | Updates the store, and any oxabl copy that stands in for a link, only if they exist. It creates no store and no link. |
+| `--force` | Renames a foreign entry to `oxabl.bak-<UTC timestamp>` beside it, and installs. See [Entries that aren't oxabl's](#entries-that-arent-oxabls). |
 
 `--check` can't be combined with `--refresh` or `--force`, and `--refresh` can't be combined with `--force`.
 
-oxabl records the files it writes in `.oxabl-skill.json` inside the target. An install replaces an oxabl copy by removing the files oxabl wrote before and the new skill no longer has, inside that folder only. A file of your own in the folder is never removed. A target that is a symlink is written through, so the real folder is updated.
+oxabl owns the store and replaces it as a whole. It writes a new folder beside the store and swaps it in, so a failed install leaves the old store whole. A file you add to the store is not kept. The links are absolute symlinks. A link that already points to the store is left as it is, so a new oxabl version updates both agents with one write.
 
-The VS Code extension has a command for the same install into the open workspace, **oxabl: Install agent skill in this workspace**. See [Teach your coding agent oxabl](/toolchain/workflows/agent-skill/#install-it).
+Where a symlink can't be made, such as on Windows without the privilege, oxabl copies the store to the link's path instead and prints the reason on that line. oxabl treats such a copy as its own: `--check` compares it with the skill, and `--refresh` and a new install replace it whole.
+
+The VS Code extension has a command that runs the same install, **oxabl: Install agent skill**. See [Teach your coding agent oxabl](/toolchain/workflows/agent-skill/#install-it).
 
 ### Keep it current
 
-A copy is *current* when its files equal the skill of the binary you run. After you update oxabl, an older copy is *stale*: it still works, but it describes the older commands.
+The store is *current* when its files equal the skill of the binary you run. After you update oxabl, an older store is *stale*: it still works, but it describes the older commands.
 
 ```sh
 oxabl skill install --check
 ```
 
 ```text
-/home/you/acme/.agents/skills/oxabl: current
-/home/you/acme/.claude/skills/oxabl: stale (references/check.md differs)
+/home/you/.local/share/oxabl/skills/oxabl: stale (references/check.md differs)
+/home/you/.agents/skills/oxabl: current
+/home/you/.claude/skills/oxabl: current
 ```
 
-`--check` writes nothing and exits `1` when any target is missing, stale or foreign, so it fits a CI job or a pre-commit hook that keeps a project's committed copy honest. To bring copies up to date without creating any new ones, run:
+`--check` writes nothing and exits `1` when the store is missing or stale, or a selected link is missing, foreign or points elsewhere. To bring the store up to date without creating anything new, run:
 
 ```sh
 oxabl skill install --refresh
 ```
 
-`--refresh` skips a target that isn't there and a target that isn't oxabl's, and says so on its line. `oxabl self-update` runs it for the copy under your home directory after it replaces the binary, so a user-level install follows the binary on its own. A copy inside a project is yours to refresh when you update, or to check in CI.
-
-### Targets that aren't oxabl's
-
-A target is **foreign** when its `SKILL.md` has no `metadata.oxabl-version`, or has another `name`: it's someone's own skill, or an older hand-written one. `install` refuses to write it without `--force`, writes nothing at all, and exits `2`:
-
 ```text
-error: /home/you/acme/.agents/skills/oxabl holds a SKILL.md that oxabl did not install; nothing was written (use --force to write the skill over it)
+/home/you/.local/share/oxabl/skills/oxabl: updated
+/home/you/.agents/skills/oxabl: current
+/home/you/.claude/skills/oxabl: current
 ```
 
-With `--force`, oxabl writes the skill files over the foreign folder and leaves its other files alone. From then on oxabl tracks the files it wrote, and later installs remove only those.
+`--refresh` skips what isn't there and what isn't oxabl's, and says so on its line:
+
+```text
+/home/you/.local/share/oxabl/skills/oxabl: skipped (not installed)
+/home/you/.agents/skills/oxabl: skipped (not installed)
+/home/you/.claude/skills/oxabl: skipped (not installed)
+```
+
+A link you removed stays removed. `oxabl self-update` runs `oxabl skill install --refresh` after it replaces the binary, so the store follows the binary on its own.
+
+### Entries that aren't oxabl's
+
+A link is *current* when it is a symlink to the store. Anything else at a link's path is **foreign**: a real folder, a file, or a symlink to somewhere else. A store whose `SKILL.md` oxabl didn't install is foreign too. `install` refuses a foreign entry, writes nothing at all, not even the store, and exits `2`:
+
+```text
+error: not installed by oxabl: /home/you/.claude/skills/oxabl (a directory without SKILL.md); nothing was written (use --force to rename it to oxabl.bak-<timestamp> and install)
+```
+
+`--check` reports the same entry as `foreign` and exits `1`:
+
+```text
+/home/you/.local/share/oxabl/skills/oxabl: current
+/home/you/.agents/skills/oxabl: current
+/home/you/.claude/skills/oxabl: foreign (a directory without SKILL.md)
+```
+
+With `--force`, oxabl renames the foreign entry to `oxabl.bak-<UTC timestamp>` beside it, never deletes it, and links:
+
+```text
+/home/you/.local/share/oxabl/skills/oxabl: current
+/home/you/.agents/skills/oxabl: current
+/home/you/.claude/skills/oxabl: linked (the foreign entry is kept as /home/you/.claude/skills/oxabl.bak-20261124T210134Z)
+```
 
 ## Exit codes
 
 | Code | Meaning |
 | --- | --- |
 | `0` | `show` printed. `install` wrote, or found nothing to change. |
-| `1` | With `install --check`: a target is missing, stale or foreign. |
-| `2` | A usage or I/O error: a file the skill doesn't have, flags that can't be combined, a folder that can't be written, or a foreign target without `--force`. |
+| `1` | With `install --check`: the store is missing or stale, or a selected link is missing, foreign or points elsewhere. |
+| `2` | A usage or I/O error: a file the skill doesn't have, flags that can't be combined, a folder that can't be written, a foreign entry without `--force`, or no `HOME`. |

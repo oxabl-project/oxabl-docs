@@ -7,7 +7,7 @@ sidebar:
 
 A coding agent that has never seen oxabl has to find out how to use it: which commands exist, what `check` exits with, how to read a finding. The oxabl **agent skill** tells it up front, in a short guide it loads only when it works on ABL. The agent then runs `oxabl check` and `oxabl format` the way this documentation describes, instead of exploring.
 
-This page installs the skill and keeps it current. It needs oxabl 5.10.0 or later; check with `oxabl --version`.
+This page installs the skill for your user and keeps it current. It needs oxabl 5.10.0 or later; check with `oxabl --version`.
 
 ## What the skill is
 
@@ -17,93 +17,80 @@ The skill is part of the `oxabl` binary, so its text always matches the commands
 
 ## Install it
 
-From the root of your project:
+Install the skill once for your user. Every project on your machine, and every agent that reads it, then has the skill:
 
 ```sh
 oxabl skill install
 ```
 
 ```text
-/home/you/acme/.agents/skills/oxabl: installed
-/home/you/acme/.claude/skills/oxabl: installed
+/home/you/.local/share/oxabl/skills/oxabl: installed
+/home/you/.agents/skills/oxabl: linked
+/home/you/.claude/skills/oxabl: linked
 ```
 
-That writes two copies, because agents look in different folders:
+oxabl keeps one copy in `${XDG_DATA_HOME:-~/.local/share}/oxabl/skills/oxabl/` and links it from the two folders where agents look for personal skills:
 
 | Folder | Read by |
 | --- | --- |
-| `.agents/skills/oxabl/` | Codex, pi, OpenCode, GitHub Copilot and other agents that read `.agents/skills`. |
-| `.claude/skills/oxabl/` | Claude Code. |
+| `~/.agents/skills/oxabl` | Codex, pi, OpenCode, GitHub Copilot and other agents that read `.agents/skills`. |
+| `~/.claude/skills/oxabl` | Claude Code. |
 
-Commit both folders. Everyone who clones the project, and every agent they use, then gets the skill with no setup. To write only one, pass `--agent agents` or `--agent claude`.
+To make only one link, pass `--agent agents` or `--agent claude`. There is no per-project install, so there is nothing to commit to a repository.
 
-To make the skill available in every project on your machine, install it for your user instead:
+**In VS Code**, run the command **oxabl: Install agent skill** (`oxabl.installSkill`) from the Command Palette. It runs `oxabl skill install` with the oxabl binary the extension uses, and a message shows the path and state of the store and of each link. It never installs the skill on its own and asks nothing else. It doesn't replace an entry that oxabl didn't install; run `oxabl skill install --force` in a terminal for that. It needs oxabl 5.10.0 or later.
 
-```sh
-oxabl skill install --user
-```
+If a link's path already holds something that oxabl didn't install, such as your own skill called `oxabl`, `install` stops and writes nothing. `--force` renames it to `oxabl.bak-<timestamp>` beside it and installs; it never deletes it. [`oxabl skill`](/toolchain/commands/skill/) has the details.
 
-It writes the same two folders under your home directory, which is where agents look for personal skills. A project can still carry its own copy.
-
-**In VS Code**, run the command **oxabl: Install agent skill in this workspace** (`oxabl.installSkill`) from the Command Palette. It runs `oxabl skill install --dir <folder>` with the oxabl binary the extension uses, so it writes both folders in your workspace, and a message shows the path and state of each. In a multi-root workspace it asks which folder. It never installs the skill on its own and asks nothing else. It doesn't replace a skill that oxabl didn't install; run `oxabl skill install --force` in a terminal for that. It needs oxabl 5.10.0 or later.
-
-For an agent that reads skills from some other folder, install under a scratch folder with `--dir`, which is the base the two folders go under, and copy the `oxabl` folder from there:
+For an agent that reads skills from some other folder, link the store there yourself:
 
 ```sh
-oxabl skill install --dir ~/scratch
+ln -s ~/.local/share/oxabl/skills/oxabl ~/.my-agent/skills/oxabl
 ```
-
-If a folder already holds a skill called `oxabl` that oxabl didn't install, `install` stops and writes nothing; `--force` writes the skill over it and keeps the other files in the folder. [`oxabl skill`](/toolchain/commands/skill/) has the details.
 
 ## Keep it current
 
-The skill is a snapshot of the oxabl you ran. After you update oxabl, an older copy still works but describes the older commands. Three ways to keep it right:
+The skill is a snapshot of the oxabl you ran. After you update oxabl, an older store still works but describes the older commands. Two ways to keep it right:
 
-**In CI**, fail the build when a committed copy is stale. `--check` writes nothing and exits `1` when a copy is missing, stale or not oxabl's:
+**Automatically**: `oxabl self-update` runs `oxabl skill install --refresh` after it replaces the binary. The store is the one copy, so both agents follow the binary on their own.
+
+**By hand**, after you update oxabl another way, such as `cargo install oxabl`:
+
+```sh
+oxabl skill install --refresh
+```
+
+`--refresh` updates the store if it exists and creates nothing, so it never adds a store or a link you removed. To see whether the install is in place without writing anything, run `--check`. It exits `1` when the store is missing or stale, or a link is missing, foreign or points elsewhere:
 
 ```sh
 oxabl skill install --check
 ```
 
 ```text
-/home/you/acme/.agents/skills/oxabl: current
-/home/you/acme/.claude/skills/oxabl: stale (references/check.md differs)
+/home/you/.local/share/oxabl/skills/oxabl: stale (references/check.md differs)
+/home/you/.agents/skills/oxabl: current
+/home/you/.claude/skills/oxabl: current
 ```
-
-Add it as a step after oxabl is installed, as in [Run oxabl in CI](/toolchain/workflows/ci/):
-
-```yaml
-      - name: Check the oxabl skill
-        run: oxabl skill install --check
-```
-
-Because the pipeline pins the oxabl version, this fails when you raise the pin, until you refresh the copies in the same change.
-
-**By hand**, after you update oxabl:
-
-```sh
-oxabl skill install --refresh
-```
-
-`--refresh` updates the copies that exist and creates none, so it never adds a folder to a project that didn't have one. It also leaves alone a folder that isn't oxabl's.
-
-**Automatically**, for your user copy: `oxabl self-update` runs the same refresh on the copy under your home directory after it replaces the binary. If you installed with `--user`, it follows the binary on its own.
 
 ## Install it by hand
 
-If you can't run `oxabl skill`, or the agent runs somewhere oxabl isn't installed, download the files from this site. They are the skill of the latest oxabl release:
+If you can't run `oxabl skill`, or the agent runs somewhere oxabl isn't installed, download the files from this site. They are the skill of the latest oxabl release. Put them in the store folder, and link the agent folders to it:
 
 ```sh
-mkdir -p .agents/skills/oxabl/references
-curl -fsSL https://docs.oxabl.org/skill/SKILL.md -o .agents/skills/oxabl/SKILL.md
+store=~/.local/share/oxabl/skills/oxabl
+mkdir -p "$store/references"
+curl -fsSL https://docs.oxabl.org/skill/SKILL.md -o "$store/SKILL.md"
 for f in build check explain rules; do
-  curl -fsSL "https://docs.oxabl.org/skill/references/$f.md" -o ".agents/skills/oxabl/references/$f.md"
+  curl -fsSL "https://docs.oxabl.org/skill/references/$f.md" -o "$store/references/$f.md"
 done
+mkdir -p ~/.agents/skills ~/.claude/skills
+ln -s "$store" ~/.agents/skills/oxabl
+ln -s "$store" ~/.claude/skills/oxabl
 ```
 
-`SKILL.md` links its reference files, which are served under `/skill/references/`. Fetch each one it names into `references/` beside it. Put the folder wherever your agent reads skills: `.agents/skills/oxabl` or `.claude/skills/oxabl` in a project, or the same folders under your home directory.
+`SKILL.md` links its reference files, which are served under `/skill/references/`. Fetch each one it names into `references/` beside it. You can also skip the store and put the files straight into `~/.agents/skills/oxabl/` or `~/.claude/skills/oxabl/`.
 
-A copy from the site carries the version of the oxabl release it was last synced from, which can trail the newest one by a day, so a later `oxabl skill install --check` reports it as current only when your binary is that version. A copy with no `.oxabl-skill.json` is still current when its files match: `--check` notes the missing manifest and doesn't fail on it, and `oxabl skill install --refresh` writes it.
+A copy from the site carries the version of the oxabl release it was last synced from, which can trail the newest one by a day. oxabl counts a folder whose `SKILL.md` has the name `oxabl` and an `oxabl-version` as its own, so a later `oxabl skill install --check` reports such a copy as current only when your binary is that version, and `oxabl skill install --refresh` replaces it whole.
 
 ## The docs as a source
 
