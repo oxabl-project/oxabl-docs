@@ -7,7 +7,7 @@ sidebar:
 
 A coding agent that has never seen oxabl has to find out how to use it: which commands exist, what `check` exits with, how to read a finding. The oxabl **agent skill** tells it up front, in a short guide it loads only when it works on ABL. The agent then runs `oxabl check` and `oxabl format` the way this documentation describes, instead of exploring.
 
-This page installs the skill for your user and keeps it current. It needs oxabl 5.10.0 or later; check with `oxabl --version`.
+This page installs the skill for your user and keeps it current. It needs oxabl 6.1.0 or later; check with `oxabl --version`.
 
 ## What the skill is
 
@@ -38,7 +38,7 @@ oxabl keeps one copy in `${XDG_DATA_HOME:-~/.local/share}/oxabl/skills/oxabl/` a
 
 To make only one link, pass `--agent agents` or `--agent claude`. There is no per-project install, so there is nothing to commit to a repository.
 
-**In VS Code**, run the command **oxabl: Install agent skill** (`oxabl.installSkill`) from the Command Palette. It runs `oxabl skill install` with the oxabl binary the extension uses, and a message shows the path and state of the store and of each link. It never installs the skill on its own and asks nothing else. It doesn't replace an entry that oxabl didn't install; run `oxabl skill install --force` in a terminal for that. It needs oxabl 5.10.0 or later.
+**In VS Code**, run the command **oxabl: Install agent skill** (`oxabl.installSkill`) from the Command Palette. It runs `oxabl skill install` with the oxabl binary the extension uses, and a message shows the path and state of the store and of each link. It never installs the skill on its own and asks nothing else. It doesn't replace an entry that oxabl didn't install; run `oxabl skill install --force` in a terminal for that. It needs oxabl 6.1.0 or later.
 
 If a link's path already holds something that oxabl didn't install, such as your own skill called `oxabl`, `install` stops and writes nothing. `--force` moves it out of the skills folders, to `~/.local/share/oxabl/skill-backups/`, and installs; it never deletes it. It can't stay beside the link, because agents would load a backup there as a second skill. [`oxabl skill`](/toolchain/commands/skill/) has the details.
 
