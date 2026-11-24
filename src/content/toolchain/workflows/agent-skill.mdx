@@ -45,6 +45,8 @@ oxabl skill install --user
 
 It writes the same two folders under your home directory, which is where agents look for personal skills. A project can still carry its own copy.
 
+**In VS Code**, run the command **oxabl: Install agent skill in this workspace** (`oxabl.installSkill`) from the Command Palette. It runs `oxabl skill install --dir <folder>` with the oxabl binary the extension uses, so it writes both folders in your workspace, and a message shows the path and state of each. In a multi-root workspace it asks which folder. It never installs the skill on its own and asks nothing else. It doesn't replace a skill that oxabl didn't install; run `oxabl skill install --force` in a terminal for that. It needs oxabl 5.10.0 or later.
+
 For an agent that reads skills from some other folder, install under a scratch folder with `--dir`, which is the base the two folders go under, and copy the `oxabl` folder from there:
 
 ```sh

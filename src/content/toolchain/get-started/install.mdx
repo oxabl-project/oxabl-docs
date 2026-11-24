@@ -5,7 +5,7 @@ sidebar:
   order: 1
 ---
 
-oxabl is one binary, `oxabl`. It's published on [crates.io](https://crates.io/crates/oxabl), and you install it with Cargo, Rust's package manager. There are no prebuilt downloads yet.
+oxabl is one binary, `oxabl`. It's published on [crates.io](https://crates.io/crates/oxabl), and you install it with Cargo, Rust's package manager.
 
 ## Before you start
 
@@ -14,6 +14,14 @@ You need Rust and Cargo. If `cargo --version` doesn't print a version, install t
 oxabl's own CI builds and tests it on Linux. Windows and macOS builds aren't tested in CI yet.
 
 ## Install oxabl
+
+On Linux x86_64 you can instead install the prebuilt release binary in `~/.local/bin`, which later updates itself with `oxabl self-update`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/oxabl-project/oxabl/master/scripts/install.sh | sh
+```
+
+To build from source with Cargo, which works on any platform Rust does:
 
 ```sh
 cargo install oxabl --locked
@@ -42,21 +50,22 @@ Commands:
   format   Format ABL source: fix layout (indentation, blank-line runs, comment placement) in place, or check/print without writing
   lsp      Run the language server over stdio (LSP), publishing live diagnostics
   schema   Emit the JSON Schema for `oxabl.toml` to stdout
+  build    Build the ABL sources: plan, compile in dependency order, install
   help     Print this message or the help of the given subcommand(s)
 
 Options:
-  -h, --help  Print help
+  -h, --help     Print help
+  -V, --version  Print version
 ```
 
-`oxabl` has no `--version` flag yet. Cargo knows which version it installed:
+The binary reports its version:
 
 ```sh
-cargo install --list
+oxabl --version
 ```
 
 ```text
-oxabl v3.0.2:
-    oxabl
+oxabl 5.9.0
 ```
 
 ## Update
