@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches: [main]
+  # The skill sync workflow starts it on bot/sync-skill, whose PR GITHUB_TOKEN cannot trigger.
+  workflow_dispatch:
 
 permissions:
   contents: read

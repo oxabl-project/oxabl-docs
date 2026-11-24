@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: write
   contents: write
   pull-requests: write
 
@@ -41,10 +42,12 @@ jobs:
           git add src/skill/oxabl
           git commit -m "chore: sync the oxabl agent skill to $TAG"
           git push --force origin bot/sync-skill
+          # Pushes and PRs made with GITHUB_TOKEN start no workflow, so the PR check needs this run.
+          gh workflow run deploy.yml --ref bot/sync-skill
           if [ -z "$(gh pr list --head bot/sync-skill --state open --json number --jq '.[].number')" ]; then
             gh pr create --head bot/sync-skill --base main \
               --title "chore: sync the oxabl agent skill to $TAG" \
-              --body "Syncs src/skill/oxabl to the skill of $TAG. PRs opened with GITHUB_TOKEN do not trigger CI: re-run the checks or push to this branch before merging."
+              --body "Syncs src/skill/oxabl to the skill of $TAG. The sync workflow starts the Deploy checks on this branch with workflow_dispatch; they report on the head commit."
           else
             gh pr edit bot/sync-skill \
               --title "chore: sync the oxabl agent skill to $TAG"
