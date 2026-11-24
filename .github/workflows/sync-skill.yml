@@ -42,8 +42,6 @@ jobs:
           git add src/skill/oxabl
           git commit -m "chore: sync the oxabl agent skill to $TAG"
           git push --force origin bot/sync-skill
-          # Pushes and PRs made with GITHUB_TOKEN start no workflow, so the PR check needs this run.
-          gh workflow run deploy.yml --ref bot/sync-skill
           if [ -z "$(gh pr list --head bot/sync-skill --state open --json number --jq '.[].number')" ]; then
             gh pr create --head bot/sync-skill --base main \
               --title "chore: sync the oxabl agent skill to $TAG" \
@@ -52,3 +50,5 @@ jobs:
             gh pr edit bot/sync-skill \
               --title "chore: sync the oxabl agent skill to $TAG"
           fi
+          # Pushes and PRs made with GITHUB_TOKEN start no workflow, so the PR check needs this run.
+          gh workflow run deploy.yml --ref bot/sync-skill
