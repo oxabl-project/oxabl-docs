@@ -1,0 +1,171 @@
+---
+title: oxabl explain
+description: Show which database tables, with which locks and which indexes, each procedure of an ABL program reads and writes. Flags, output and exit codes.
+sidebar:
+  order: 3
+---
+
+`oxabl explain` shows the database effects of one ABL program: for each unit in it (the main block, each internal procedure, function or method), which tables it reads, creates, updates and deletes, with which lock, how often, and what its calls add. It answers "what does this program do to the database?" without running it, and it works from source only: no AVM and no database connection.
+
+```sh
+oxabl explain [OPTIONS] <FILE>
+```
+
+`FILE` is one ABL file. Add `:LINE` to show only the unit that contains that line:
+
+```sh
+oxabl explain src/ship.p:4
+```
+
+`explain` reads `oxabl.toml` from the directory of `FILE` or the nearest directory above it, for `include_paths` and the schema. It expands includes and evaluates `&IF` first, as [`check`](/toolchain/commands/check/) does. It doesn't read `[workspace.features]`.
+
+## Read the output
+
+This program runs one program and has one internal procedure:
+
+```abl title="src/ship.p"
+RUN check-credit.p.
+
+PROCEDURE reprice:
+    FOR EACH Customer EXCLUSIVE-LOCK:
+        FIND FIRST Customer WHERE Customer.CustNum = 1 NO-LOCK.
+        Customer.Name = "x".
+    END.
+    RUN VALUE("other.p").
+END PROCEDURE.
+```
+
+```sh
+oxabl explain src/ship.p
+```
+
+```text
+src/ship.p (expanded lines)
+unit main <main> @1
+  direct: none
+  summary: complete
+  transitive: read Customer no-lock once via <root>/src/check-credit.p::main
+unit procedure reprice @3
+  direct: read Customer exclusive-lock once @4 index=CustNum (primary; tie=none; whole=true; equality=0; range=false)
+  direct: read Customer no-lock per-row @5 index=CustNum (unique-equality; tie=none; whole=false; equality=1; range=false)
+  direct: update Customer n/a per-row @6
+  summary: partial
+    unknown: call:dynamic
+  transitive: read Customer no-lock per-row
+  transitive: read Customer exclusive-lock once
+  transitive: update Customer n/a per-row
+```
+
+`<root>` stands for the absolute path of the project in the real output.
+
+The first line names the file. Every line number in the output, here and in `:LINE`, counts in the text after includes are expanded, which is why the header says `(expanded lines)`. Each unit follows, as `unit <kind> <name> @<line>`. The kind is `main`, `procedure`, `function`, `method`, `constructor`, `destructor`, `property-get`, `property-set`, `trigger` or `db-trigger`; the main block has no name and shows `<main>`.
+
+A unit has three kinds of line.
+
+**`direct:`** is what the unit does itself, one line per statement that touches a table:
+
+```text
+direct: <operation> <table> <lock> <shape> @<line> [index=<name> (<why>)]
+```
+
+| Part | Values |
+| --- | --- |
+| operation | `read`, `create`, `update` or `delete`. |
+| table | A database table, `tt:<name>` for a temp-table, or `?:<name>` for a table oxabl can't resolve. |
+| lock | `no-lock`, `share-lock`, `exclusive-lock`, `share-lock(default)` when the statement names no lock phrase, or `n/a`. |
+| shape | `once`, `per-row` when the statement runs for each record of a loop around it, or `nested(N)` inside `N` nested record loops. |
+| `index=` | The index oxabl expects the compiler to pick, and why: `primary`, `unique-equality`, `equality`, `range`, `sort`, `use-index`, `contains` or `key-value`, with the ties it broke, whether it reads the whole index (`whole=true`) and how many leading fields have an equality match. `table-scan` and `rowid` are shown when the search uses no index. |
+
+The index is oxabl's estimate of what the compiler chooses, not something it read from the compiler. When it can't tell, the line ends with `(unknown:<reason>)` instead, such as `unknown-table` when no schema describes the table. A schema with the table's indexes is what makes the estimate possible.
+
+**`summary:`** says whether oxabl knows everything the unit does once its calls are followed. `complete` means every call was followed. `partial` means something wasn't, and each reason follows on its own `unknown:` line: `call:dynamic` for a `RUN VALUE(...)` or `DYNAMIC-FUNCTION`, `call:not-found` for a program no search path supplies, `call:handle`, `call:method` and others for a call whose target depends on a run-time object, and `unit:recovered-parse` when part of the file didn't parse. A unit that calls itself, directly or through others, adds `, recursive`.
+
+**`transitive:`** is what the unit and everything it calls do together, one line per table, operation and lock. An effect that comes from a called program ends with `via <callee>`. A partial summary lists only what oxabl could follow, so it is a lower bound.
+
+## Options
+
+| Option | What it does |
+| --- | --- |
+| `--json` | Prints one JSON document instead of text. See [JSON output](#json-output). |
+| `-I`, `--include-path <DIR>` | Adds a directory to search for includes, classes and `RUN` targets. Repeat it for more. Added to `include_paths` from `oxabl.toml`. |
+| `--schema <PATH>` | A `.df` schema file or a directory of them. Replaces `[workspace.schema]` for this run. Without one, the output has no `index=` and no table is known. |
+
+A schema that can't be read is a warning on stderr, and the run goes on without it:
+
+```text
+warning: schema: [SCHEMA0001] cannot read schema file `nosuch.df`: No such file or directory (os error 2)
+```
+
+## One unit
+
+`FILE:LINE` shows the innermost unit that contains line `LINE` of the file as you wrote it. Line `4` of `ship.p` is inside `reprice`, so only that unit prints:
+
+```sh
+oxabl explain src/ship.p:4
+```
+
+```text
+src/ship.p (expanded lines)
+unit procedure reprice @3
+  direct: read Customer exclusive-lock once @4 index=CustNum (primary; tie=none; whole=true; equality=0; range=false)
+  ...
+```
+
+A line outside every procedure selects the main block. A line number that is zero or past the end of the file is an error:
+
+```text
+error: line is outside the file
+```
+
+## JSON output
+
+```sh
+oxabl explain src/ship.p:1 --json
+```
+
+```json
+{
+  "version": 1,
+  "file": "src/ship.p",
+  "coordinates": "expanded-lines",
+  "units": [
+    {
+      "kind": "main",
+      "name": null,
+      "line": 1,
+      "effects": [],
+      "summary": {
+        "complete": true,
+        "partial": [],
+        "recursive": false,
+        "effects": [
+          {
+            "table": "Customer",
+            "operation": "read",
+            "lock": "no-lock",
+            "shape": "once",
+            "line": null,
+            "index": null,
+            "reason": null,
+            "via": "<root>/src/check-credit.p::main"
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+`effects` is the `direct:` lines, `summary.effects` the `transitive:` lines. In `effects`, `index` and `reason` hold the index and its explanation, or `null` and the `unknown:` reason. In `summary.effects`, `line`, `index` and `reason` are `null`, and `via` names the callee. `version` changes when the shape does; the shape isn't a stable contract yet.
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | A report was printed, whatever it holds. `explain` describes a program; it isn't a gate. |
+| `2` | A file that can't be read, or a `:LINE` that isn't a positive number or is outside the file. |
+| `3` | Preprocessing failed, so there is nothing to describe. |
+| `4` | An internal error while analyzing the file. |
+| `6` | The JSON document couldn't be produced. |
+
+`explain` takes one file at a time. For the same facts as lint findings across a tree, such as a default lock or a `FIND` inside a loop, enable the `strict` rule groups in [`[workspace.lint]`](/toolchain/configure/oxabl-toml/#rules) and run [`check`](/toolchain/commands/check/).

@@ -1,0 +1,134 @@
+---
+title: oxabl format
+description: Fix the layout of ABL source in place, or check or print it without writing. Every flag, the styles, and the exit codes.
+sidebar:
+  order: 2
+---
+
+`oxabl format` fixes the layout of ABL source: indentation, runs of blank lines, and, when a style asks for it, keyword case and spelling. It changes layout only. It never renames an identifier, reorders statements or rewrites a comment, and it refuses to write a file if the result would differ from the original in anything but layout.
+
+```sh
+oxabl format [OPTIONS] <PATH>
+```
+
+`PATH` is a directory or one file. For a directory, `format` reads every file with a root extension (`.p`, `.w`, `.cls` and `.v` by default, in any case; see [`root_extensions`](/toolchain/configure/oxabl-toml/#workspacesources)). A file you name is always formatted, whatever its extension, so `oxabl format order-vars.i` works on an include file.
+
+`format` reads `oxabl.toml` from the directory of `PATH` or the nearest directory above it, for the style and for the source encoding. It writes a file back in the encoding it read it in.
+
+## Three ways to run it
+
+```sh
+oxabl format src
+```
+
+Rewrites the files that need it, in place. It prints nothing when it succeeds.
+
+```sh
+oxabl format --check src
+```
+
+Writes nothing. It names each file that would change and exits `1` if there is one:
+
+```text
+src/orders/clean.p: would reformat
+src/orders/messy.p: would reformat
+```
+
+```sh
+oxabl format --stdout src/orders/messy.p
+```
+
+Prints the formatted file and leaves the one on disk alone. It takes one file, not a directory. This is the form for an editor or a script that does the writing itself:
+
+```text
+define variable iCount as integer no-undo.
+for each order no-lock:
+    iCount = iCount + 1.
+    if iCount > 3 then do:
+        message "big".
+    end.
+end.
+
+display iCount.
+```
+
+`--check` and `--stdout` can't be combined.
+
+## Files it leaves alone
+
+A file `format` can't format faithfully is left exactly as it was, and the reason goes to stderr:
+
+```text
+src/orders/broken.p: file has parse errors; left unchanged (no partial formatting)
+```
+
+The reasons are a parse error, output that would change the token stream, and a file that only parses after the preprocessor expands it (`formatting would have altered the token stream; left unchanged`, `file only parses after preprocessor expansion; left unchanged`). With `--stdout`, the original text is still printed, so a pipeline never loses the file.
+
+This never changes the exit code, in any mode: one file `format` can't handle doesn't fail a batch. To fail on a file that doesn't parse, use [`oxabl check`](/toolchain/commands/check/), which reports it as `PARSE001`.
+
+## Options
+
+| Option | What it does |
+| --- | --- |
+| `--check` | Writes nothing. Exits `1` if any file would change. |
+| `--stdout` | Prints the formatted result to stdout and leaves the file on disk unchanged. One file only. |
+| `--style <STYLE>` | The style to use: a preset, `oestandards` or `consultingwerk`, or the path to a `.toml` style file. Replaces `[workspace.style]` from `oxabl.toml` as a whole. See [Styles](#styles). |
+| `-j`, `--jobs <N>` | Formats `N` files at once. The default is the number of cores; `1` formats one at a time. The output and the exit code are the same at every value. |
+
+## Styles
+
+Without `--style`, `format` uses [`[workspace.style]`](/toolchain/configure/oxabl-toml/#workspacestyle) from `oxabl.toml`, and where that is missing, a default that only fixes indentation (4 spaces) and cuts runs of blank lines to one.
+
+`--style` takes a preset or a file. A style file holds the same keys as `[workspace.style]`, at the top level:
+
+```toml title="mystyle.toml"
+keyword_case = "Uppercase"
+indent_size = 2
+```
+
+```sh
+oxabl format --style mystyle.toml --stdout src/orders/messy.p
+```
+
+```text
+DEFINE VARIABLE iCount AS INTEGER NO-UNDO.
+FOR EACH order NO-LOCK:
+  iCount = iCount + 1.
+END.
+```
+
+`--style` replaces the whole of `[workspace.style]`; it doesn't merge with it. It also ignores the rest of `oxabl.toml`, except the source encoding, so it works in a tree whose `oxabl.toml` is broken, and it skips the `format = false` switch described below. A name that is neither a preset nor a readable file is an error:
+
+```text
+error: --style `nosuch` is not a known preset (oestandards, consultingwerk) and cannot be read as a file: No such file or directory (os error 2)
+```
+
+Long lines are left as they are. `max_line_length` and `wrap_long_lines` are read but not applied: a 200-column line stays 200 columns.
+
+## When `oxabl.toml` can't be used
+
+Like [`check`](/toolchain/commands/check/#exit-codes), `format` refuses to run on an `oxabl.toml` it can't use, including one with a key it doesn't know. It exits `2` and writes nothing, because a write would reformat the tree in a style nobody chose:
+
+```text
+error: failed to parse oxabl.toml: TOML parse error at line 2, column 1
+  |
+2 | indent_sise = 2
+  | ^^^^^^^^^^^
+unknown field `indent_sise`, expected one of `keyword_case`, `keyword_abbreviation`, ...
+```
+
+Setting `format = false` under [`[workspace.features]`](/toolchain/configure/oxabl-toml/) also exits `2` and writes nothing:
+
+```text
+error: formatting is off in oxabl.toml ([workspace.features] format = false); nothing was formatted
+```
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Every file is formatted, or, with `--check`, none would change. A file that `format` left alone because it couldn't format it faithfully doesn't count. |
+| `1` | With `--check`, at least one file would change. In any mode, a file that couldn't be read or written. |
+| `2` | A usage or configuration error: a path that doesn't exist or holds no ABL files, `--stdout` with a directory, `--check` with `--stdout`, a `--style` that can't be resolved, an `oxabl.toml` that can't be used, or `format = false`. |
+
+For a CI gate, use [`oxabl check`](/toolchain/commands/check/) rather than `format --check`: it also reports lint findings, and a file that doesn't parse fails it. See [Run oxabl in CI](/toolchain/workflows/ci/).

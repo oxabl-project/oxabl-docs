@@ -11,10 +11,12 @@ oxabl is one binary, `oxabl`, for ABL code. It doesn't need the AVM or a databas
 | Command | What it does |
 | --- | --- |
 | [`oxabl check`](/toolchain/commands/check/) | Lints a tree and reports formatting drift. The gate for commits and CI. |
-| `oxabl format` | Fixes layout in place, or checks it without writing. |
-| `oxabl explain` | Shows which tables each unit reads and writes. |
-| `oxabl lsp` | Runs the language server, for diagnostics and format-on-save in your editor. |
-| `oxabl schema` | Prints the JSON Schema of `oxabl.toml`, for completion in your editor. |
+| [`oxabl format`](/toolchain/commands/format/) | Fixes layout in place, or checks it without writing. |
+| [`oxabl explain`](/toolchain/commands/explain/) | Shows which tables each unit reads and writes. |
+| [`oxabl build`](/toolchain/commands/build/) | Plans and runs an incremental compile, and shares compiled code through a cache. Experimental. |
+| [`oxabl lsp`](/toolchain/commands/lsp/) | Runs the language server, for diagnostics and format-on-save in your editor. |
+| [`oxabl schema`](/toolchain/commands/schema/) | Prints the JSON Schema of `oxabl.toml`, for completion in your editor. |
+| [`oxabl skill`](/toolchain/commands/skill/) | Prints or installs the agent skill that teaches a coding agent oxabl. oxabl 6.1.0 and later. |
 
 A project's settings live in one file, [`oxabl.toml`](/toolchain/configure/oxabl-toml/), at the root of the project.
 

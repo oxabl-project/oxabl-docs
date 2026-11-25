@@ -1,0 +1,301 @@
+---
+title: oxabl build
+description: Plan and run an incremental ABL compile that rebuilds only what a change reaches, with a compile cache. Every flag, the flows, and the exit codes.
+sidebar:
+  order: 4
+---
+
+`oxabl build` compiles ABL, and only what a change reaches. It keeps a graph of which programs use which includes and classes, works out the programs that need compiling, and compiles them in dependency order on a pool of OpenEdge sessions that your own command starts. It skips what a compile cache already has.
+
+`build` is experimental. It needs OpenEdge to compile, but the planning half doesn't: `--plan` and `--print-config` work on any machine that has the source.
+
+```sh
+oxabl build [OPTIONS]
+```
+
+`build` takes no path. It works on a workspace, found from the nearest `oxabl.toml` at or above the current directory, or named with `--root`. This page covers the flags and the common flows. It doesn't cover every `[build]` setting, the compile keys or the cache protocol; [What this page leaves out](#what-this-page-leaves-out) says where those are.
+
+## What it needs
+
+Compiling needs two settings in `oxabl.toml`: the command that starts one OpenEdge session, and where the r-code goes.
+
+```toml title="oxabl.toml"
+[workspace]
+name = "acme"
+
+[workspace.sources]
+include_paths = ["src", "$DLC/tty", "$DLC/src"]
+dlc = "/usr/dlc"
+
+[build]
+rcode = "beside-source"
+
+[build.workers]
+command = ["_progres", "-b", "-q", "-pf", "build.pf", "-p", "{program}"]
+count = 4
+```
+
+- **`[build.workers].command`** starts one batch OpenEdge session. oxabl fills in `{program}`, the worker program it ships, and `{root}`, the workspace root. The session must start in the workspace; for OpenEdge in a container, use `docker exec -i -w {root} <container> _progres ...`. oxabl never sees a database password: connections come from your `.pf` file.
+- **`[build].rcode = "beside-source"`** puts each program's r-code next to it (`a/x.p` gives `a/x.r`). The alternative is `[build].output`, a directory for the r-code; use one or the other. Make your `.gitignore` ignore `*.r` for the first.
+- **`[build.workers].count`** is the number of sessions. The default is one per CPU, at most 8.
+
+The [`[workspace.sources]`](/toolchain/configure/oxabl-toml/#workspacesources) and [`[workspace.preprocessor]`](/toolchain/configure/oxabl-toml/#workspacepreprocessor) tables tell oxabl how your code is found and what `&IF` sees, as for [`check`](/toolchain/commands/check/). `oxabl.toml` is read strictly, and an unknown key under `[build]` is an error that exits `2`:
+
+```text
+error: failed to parse oxabl.toml: TOML parse error at line 4, column 1
+  |
+4 | bogus=1
+  | ^^^^^
+unknown field `bogus`, expected one of `output`, `rcode`, `state`, `store`, `exclude`, `libraries`, `external_packages`, `outputs`, `compile`, `workers`, `verify`, `cache`
+```
+
+oxabl keeps its state in `.oxabl/build` under the workspace root, and a build writes a `.gitignore` into `.oxabl/` so version control ignores it.
+
+## See what would rebuild
+
+`--plan` refreshes the graph, lists the programs that must rebuild and why, and compiles nothing. It starts no OpenEdge session.
+
+```sh
+oxabl build --plan
+```
+
+```text
+rebuild    src/check-credit.p  new
+rebuild    src/ship.p          new
+2 to rebuild, 0 unchanged, store generation 1
+```
+
+One line names each program and the first reason that applies. Each `--plan` also records what it saw, so before a first build has recorded results, a plan lists what changed since the previous refresh:
+
+```sh
+oxabl build --plan
+```
+
+```text
+0 to rebuild, 2 unchanged, store generation 1
+```
+
+After an include changes, the programs that use it are listed with it:
+
+```text
+rebuild    src/a.p  dependency-changed: src/inc.i
+1 to rebuild, 1 unchanged, store generation 2
+```
+
+Once a build has recorded results, a plan compares each program with its last result, so a program that failed, or whose r-code is gone, is listed until it is built.
+
+| Reason | Meaning |
+| --- | --- |
+| `new` | oxabl hasn't seen the program, or it has no result yet. |
+| `named` | `--files` or `--since` named a file in its closure. |
+| `source-changed` | The program's own bytes changed. |
+| `dependency-changed` | A file it includes or uses changed. The file is named. |
+| `closure-changed` | It gained or lost a file it depends on. |
+| `failed` | Its last compile failed. |
+| `output-missing`, `output-changed` | An r-code file is gone or was changed outside oxabl. |
+| `unkeyable` | The program has no compile key, so it compiles every time. Only with `--probe`. |
+
+With `--probe`, a plan also tells apart changes of the PROPATH, the compile environment, the compile options and the worker program, and gives every program its compile key. The rest of the reasons are in the oxabl repository.
+
+Options for `--plan`:
+
+```sh
+oxabl build --plan --all                  # also list the programs that don't need to rebuild
+oxabl build --plan --files src/inc.i      # pretend these files changed
+oxabl build --plan --since origin/main    # pretend every file that differs from a git revision changed
+oxabl build --plan --json                 # the plan as one JSON document
+oxabl build --plan --probe                # start the workers and key every program
+```
+
+`--files` and `--since` are for CI and editors. `--since <rev>` runs `git` in the workspace root and counts committed, staged and unstaged edits, deletions, renames and untracked files. A path that isn't in the graph, such as a `README`, is listed as `unknown-file` and changes nothing:
+
+```text
+unknown    README.md  unknown-file
+0 to rebuild, 2 unchanged, store generation 2
+```
+
+`--since` with a revision git doesn't know, or outside a git work tree, exits `2`:
+
+```text
+error: "nosuchrev" is not a git revision
+```
+
+`--files` and `--since` can't be combined, and both need `--plan`.
+
+### Plan as JSON
+
+`--plan --json` prints one document. `format` is `1`; like the other JSON output the shape isn't a stable contract yet.
+
+```json
+{
+  "environment": { "at": null, "identity": null, "source": "none" },
+  "format": 1,
+  "removed": [],
+  "store": { "committed": true, "generation": 1 },
+  "summary": { "rebuild": 2, "skipped": 0, "unkeyable": 0, "up_to_date": 0 },
+  "units": [
+    {
+      "action": "rebuild",
+      "compile_name": null,
+      "key": null,
+      "path": "src/a.p",
+      "reasons": [{ "kind": "new", "paths": [] }],
+      "unkeyable": ["environment-unknown"]
+    }
+  ],
+  "unknown_files": []
+}
+```
+
+`units` holds the programs to rebuild. A program that can't compile where it is has `action: "skip"` with the reason in `unkeyable`; with `--all`, the others are there as `up-to-date`. Without `--probe`, `key` is `null` and `unkeyable` says `environment-unknown`: the plan hasn't seen the environment, which doesn't mean the program needs a rebuild. With `--probe`, `environment` holds the identity of the workers' environment and each program its compile key.
+
+## Check the configuration
+
+`--print-config` prints every effective setting with where it came from: a flag, an environment variable, the overlay, `oxabl.toml` or the default. It starts nothing and compiles nothing.
+
+```sh
+oxabl build --print-config
+```
+
+```text
+# root: /home/you/acme
+# oxabl.toml: /home/you/acme/oxabl.toml
+# overlay: none
+build.cache.enabled = true                                       # default
+build.cache.local_max_size = "20GiB"                             # default
+build.rcode = "beside-source"                                    # oxabl.toml
+build.state = ".oxabl/build"                                     # default
+build.workers.command = ["_progres","-b","-q","-p","{program}"]  # oxabl.toml
+build.workers.count = 2                                          # oxabl.toml
+build.workers.unit_timeout = "10m"                               # default
+workspace.name = "acme"                                          # oxabl.toml
+workspace.sources.include_paths = ["src"]                        # oxabl.toml
+...
+verification.mode = "developer"                                  # default
+```
+
+The real output lists every setting; this one is cut. `--json` prints the same as a document, each setting with its `value` and `source`. `--print-config` can't be combined with the flags that run a plan or a build.
+
+Run it first in a new project and after any change to the config. It is the quickest way to see that a flag, the environment or an overlay did what you meant. To see a build setting that isn't on this page, look for it in this output.
+
+## Check the workers
+
+`--probe` starts the worker pool, prints what the sessions report, and stops. Use it to check that the worker command works, and what environment the compile will see.
+
+```sh
+oxabl build --probe
+```
+
+It prints the identity of the environment, the OpenEdge facts the workers report, the startup parameters, each connected database with the identity of its schema, and `workers: N of M`. With `--json` it prints the same as a document.
+
+When no worker starts, `--probe` and `build` exit `3` and show the last lines of the worker's log:
+
+```text
+error: no worker could start; the last error was: cannot start the worker command: _progres: No such file or directory (os error 2)
+last 20 lines of /home/you/acme/.oxabl/build/logs/01M87GSJ7KXCE620WEN5BE2C3D/worker-2.log:
+oxabl: start 1 of worker 2 failed: cannot start the worker command: _progres: No such file or directory (os error 2)
+```
+
+## Build
+
+```sh
+oxabl build
+```
+
+The build takes the workspace lock, refreshes the graph, starts the workers and works out the plan with a compile key for each program. A program whose key is in the compile cache is installed from it; the others compile on the workers, each after the programs it depends on. A program that fails is tried once more at the end. It then prints what compiled, with the compiler messages of each failed program, then one line of counts:
+
+```text
+failed    src/ar/bad.p
+  error 1234 src/ar/bad.p:1:1: Syntax error
+compiled 3, failed 1, 0 up to date in 0.3s
+```
+
+A program that compiled with warnings is listed too (`compiled  <path>`), under its messages. The counts line adds `fetched N` for programs a cache gave, `skipped N` for programs that can't compile where they are, `not run N` for programs that didn't run because of `--fail-fast` or a cancel, and `(N tainted)` for programs compiled after a program they depend on failed; a tainted program is never cached. When a cache is in use, a last line says what it did, such as `local: 12 sets offered, 12 stored`.
+
+A program that fails to compile doesn't hold back the programs that use it; they compile and are marked tainted. The next build compiles them again.
+
+### In CI
+
+```sh
+oxabl build --report oxabl-build.json
+```
+
+`--report <file>` writes the result as JSON when the build ends, whatever the exit code, and leaves the console output as it is. Upload it as an artifact. `--json` prints the same document to stdout instead of the text. Pin the oxabl version as in [Run oxabl in CI](/toolchain/workflows/ci/). Most CI systems set `CI`, which puts the build in the `read-only` cache mode: it fetches from the remote cache and writes nothing. A job that should fill the cache sets `OXABL_CACHE_MODE=ci`; see [Caches](#caches).
+
+Gate on the exit code: `1` means a program failed to compile.
+
+### For a tool that shows progress
+
+`--events` writes one JSON object per line to stdout while the build runs, and moves the human output to stderr:
+
+```json
+{"build":"01M6J9YBYMXZSXNTHHPMRGQZG7","event":"build-started","format":1,"rebuild":4,"units":4,"workers":2}
+{"event":"unit-started","path":"src/ar/post.p","worker":1}
+{"event":"unit-finished","ms":812,"path":"src/ar/post.p","status":"ok"}
+{"compiled":3,"event":"summary","exit":1,"failed":1,"fetched":0,"skipped":0}
+```
+
+The events are `build-started`, `unit-started`, `message`, `unit-finished`, `unit-fetched`, `worker-lost` and, last, `summary`. `--events` and `--json` can't be combined. Their fields and the report's are listed in the oxabl repository, in [What `oxabl build` reports](https://github.com/oxabl-project/oxabl/blob/master/docs/build-output.md).
+
+### From an editor or a wrapper
+
+Only one build runs in a workspace at a time. A second one exits `3` and names the first's process id. Two flags change that:
+
+- `--wait-lock <SECONDS>` waits up to that long for the lock instead of stopping.
+- `--yield` marks this build as one that steps aside: a later `oxabl build` stops it with one interrupt, and it exits `130`, instead of failing on the lock. An editor uses this for builds on save, so a build you start in a terminal doesn't wait for it.
+
+A tool that owns the environment (containers, databases, PROPATH) can give `--config-overlay <file>` a TOML file with the settings of one run; it's merged over `oxabl.toml` key by key, and an array replaces. `OXABL_BUILD_OVERLAY` names the same file, and the flag wins. A wrapper's guide is in the oxabl repository: [Drive `oxabl build` from a wrapper](https://github.com/oxabl-project/oxabl/blob/master/docs/build-wrapper.md).
+
+## Options
+
+Without any of the first three, `build` compiles.
+
+| Option | What it does |
+| --- | --- |
+| `--plan` | Prints the plan and compiles nothing. |
+| `--probe` | Starts the worker pool, prints what the workers report, and exits. With `--plan`, also keys every program. |
+| `--print-config` | Prints the effective configuration with the source of each value, and stops. |
+| `--all` | With `--plan`, also lists the programs that don't need to rebuild. |
+| `--files <PATH>...` | With `--plan`, treats these files as changed. Paths are relative to the current directory. |
+| `--since <REV>` | With `--plan`, treats every file that differs from this git revision as changed. Not with `--files`. |
+| `--json` | Prints the plan, the probe, the configuration or the build report as one JSON document. |
+| `--root <DIR>` | The workspace root. The default is the nearest directory at or above the current one that holds an `oxabl.toml`. |
+| `--config-overlay <FILE>` | A TOML file merged over `oxabl.toml` for this run. It may set `[workspace]` `name`, `sources`, `preprocessor` and `schema`, and `[build]`. |
+| `--workers <N>` | The number of workers. Overrides `[build.workers].count`. |
+| `--events` | Writes one JSON object per event to stdout while building. Not with `--plan`, `--probe` or `--json`. |
+| `--report <FILE>` | Writes the per-program results to this file as JSON. Not with `--plan` or `--probe`. |
+| `--fail-fast` | Stops starting compiles at the first failure. The programs not started are `not-run` in the report. Not with `--plan` or `--probe`. |
+| `--no-cache` | Reads from and writes to no compile cache. Not with `--plan` or `--probe`. |
+| `--no-remote-cache` | Doesn't use the remote cache. The local cache stays on. Not with `--plan` or `--probe`. |
+| `--wait-lock <SECONDS>` | Waits up to this long for the workspace lock. Not with `--plan` or `--probe`. |
+| `--yield` | Steps aside for any newer build. Not with `--plan` or `--probe`. |
+
+## Caches
+
+A compile is keyed by the program, everything it includes, the PROPATH, the OpenEdge environment, the compile options and the worker program. Two checkouts of a project, or two branches, share a **local cache** because a key depends on content, not on the path. It lives in `~/.cache/oxabl/artifacts` (under `$XDG_CACHE_HOME` when that is set) and is capped at 20 GiB by default.
+
+A **remote cache** shares compiles between a team and CI through an oxabl cache server; see [the cache](/cache/). It needs a binary built with the `remote-cache` feature (the release binary has it; `cargo install oxabl` doesn't unless you add `--features remote-cache`), and a workspace that turns it on with `[build.cache].remote = true` or a `.oxabl/cache.toml` file. A workspace that wants the remote cache and a binary without it stops with exit `2`, so a CI job doesn't run slowly without saying so, unless you pass `--no-remote-cache`.
+
+A cache error is a miss, never a failed build and never a wrong hit. What a cache may do depends on the mode. `OXABL_CACHE_MODE` is `ci`, `developer` or `read-only`; when it isn't set, the mode is `read-only` if `CI` is set and `developer` otherwise. The shared local cache is used only in `developer` mode, and in `read-only` nothing is written.
+
+## The lock and cancel
+
+A build holds `<state>/build.lock` until it ends. The first `SIGINT` or `SIGTERM` stops starting compiles and gives busy workers 30 seconds (`[build.workers].cancel_grace`) to finish their program; what they finish is installed and recorded. A second signal stops every worker at once. The exit code is `130`, and the next build compiles what wasn't recorded.
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Every program compiled or came from a cache, or `--plan`, `--probe` or `--print-config` printed its answer. A program that can't compile where it is (skipped) isn't a failure. |
+| `1` | At least one program failed to compile after the retry. |
+| `2` | A usage or configuration error: no worker command, no `[build].output` and no `[build].rcode = "beside-source"` (or both), an unknown key in `oxabl.toml` or the overlay, flags that can't be combined, no `oxabl.toml` found, a git revision that doesn't exist, an output directory oxabl doesn't own, or workers that disagree about the environment. Nothing compiled. |
+| `3` | oxabl couldn't use something it needs: the store, the lock (another build runs and doesn't yield), the workspace, or the workers (none started, or none was left). |
+| `130` | Cancelled by a signal, or stopped by a newer build when this one runs with `--yield`. The store is consistent. |
+
+## What this page leaves out
+
+The `[build]` tables are listed with their defaults by `oxabl build --print-config`, but they aren't documented on this site yet: `[build.workers]` (`env`, `root`, `unit_timeout`, `start_timeout`), `[build.compile]`, `[build.outputs]` (listing, XREF and debug list files), `[build.libraries]`, `[build.external_packages]`, `[build.verify]` and `[build.cache]`. The oxabl repository documents them, along with the rest:
+
+- the full list of plan reasons, the compile keys and why a program has none: [`docs/overview.md`](https://github.com/oxabl-project/oxabl/blob/master/docs/overview.md#oxabl-build---plan)
+- every event and report field: [`docs/build-output.md`](https://github.com/oxabl-project/oxabl/blob/master/docs/build-output.md)
+- overlays and wrappers: [`docs/build-wrapper.md`](https://github.com/oxabl-project/oxabl/blob/master/docs/build-wrapper.md)

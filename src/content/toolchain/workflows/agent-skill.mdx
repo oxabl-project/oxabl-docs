@@ -1,0 +1,109 @@
+---
+title: Teach your coding agent oxabl
+description: Install the oxabl agent skill so Claude Code, Codex, pi, OpenCode and other coding agents lint, format and build your ABL code with oxabl.
+sidebar:
+  order: 3
+---
+
+A coding agent that has never seen oxabl has to find out how to use it: which commands exist, what `check` exits with, how to read a finding. The oxabl **agent skill** tells it up front, in a short guide it loads only when it works on ABL. The agent then runs `oxabl check` and `oxabl format` the way this documentation describes, instead of exploring.
+
+This page installs the skill for your user and keeps it current. It needs oxabl 6.1.0 or later; check with `oxabl --version`.
+
+## What the skill is
+
+A skill is a folder with a `SKILL.md` and a few reference files, in the Agent Skills format. Many agents read this format, so the skill isn't tied to one of them. `SKILL.md` starts with a name and a description. The agent reads the description to decide when the skill applies, here for ABL, OpenEdge and Progress code, `.p`, `.w`, `.cls` and `.i` files, and requests to lint, format, compile or check database effects. Only then does it load the rest.
+
+The skill is part of the `oxabl` binary, so its text always matches the commands and flags of that version. The [`oxabl skill`](/toolchain/commands/skill/) command prints it and installs it.
+
+## Install it
+
+Install the skill once for your user. Every project on your machine, and every agent that reads it, then has the skill:
+
+```sh
+oxabl skill install
+```
+
+```text
+/home/you/.local/share/oxabl/skills/oxabl: installed
+/home/you/.agents/skills/oxabl: linked
+/home/you/.claude/skills/oxabl: linked
+```
+
+oxabl keeps one copy in `${XDG_DATA_HOME:-~/.local/share}/oxabl/skills/oxabl/` and links it from the two folders where agents look for personal skills:
+
+| Folder | Read by |
+| --- | --- |
+| `~/.agents/skills/oxabl` | Codex, pi, OpenCode, GitHub Copilot and other agents that read `.agents/skills`. |
+| `~/.claude/skills/oxabl` | Claude Code. |
+
+To make only one link, pass `--agent agents` or `--agent claude`. There is no per-project install, so there is nothing to commit to a repository.
+
+**In VS Code**, run the command **oxabl: Install agent skill** (`oxabl.installSkill`) from the Command Palette. It runs `oxabl skill install` with the oxabl binary the extension uses, and a message shows the path and state of the store and of each link. It never installs the skill on its own and asks nothing else. It doesn't replace an entry that oxabl didn't install; run `oxabl skill install --force` in a terminal for that. It needs oxabl 6.1.0 or later.
+
+If a link's path already holds something that oxabl didn't install, such as your own skill called `oxabl`, `install` stops and writes nothing. `--force` moves it out of the skills folders, to `~/.local/share/oxabl/skill-backups/`, and installs; it never deletes it. It can't stay beside the link, because agents would load a backup there as a second skill. [`oxabl skill`](/toolchain/commands/skill/) has the details.
+
+For an agent that reads skills from some other folder, link the store there yourself:
+
+```sh
+ln -s ~/.local/share/oxabl/skills/oxabl ~/.my-agent/skills/oxabl
+```
+
+## Keep it current
+
+The skill is a snapshot of the oxabl you ran. After you update oxabl, an older store still works but describes the older commands. Two ways to keep it right:
+
+**Automatically**: `oxabl self-update` runs `oxabl skill install --refresh` after it replaces the binary. The store is the one copy, so both agents follow the binary on their own.
+
+**By hand**, after you update oxabl another way, such as `cargo install oxabl`:
+
+```sh
+oxabl skill install --refresh
+```
+
+`--refresh` updates the store if it exists and creates nothing, so it never adds a store or a link you removed. To see whether the install is in place without writing anything, run `--check`. It exits `1` when the store is missing or stale, or a link is missing, foreign or points elsewhere:
+
+```sh
+oxabl skill install --check
+```
+
+```text
+/home/you/.local/share/oxabl/skills/oxabl: stale (references/check.md differs)
+/home/you/.agents/skills/oxabl: current
+/home/you/.claude/skills/oxabl: current
+```
+
+## Install it by hand
+
+If you can't run `oxabl skill`, or the agent runs somewhere oxabl isn't installed, download the files from this site. They are the skill of the latest oxabl release. Put them in the store folder, and link the agent folders to it:
+
+```sh
+store=~/.local/share/oxabl/skills/oxabl
+mkdir -p "$store/references"
+curl -fsSL https://docs.oxabl.org/skill/SKILL.md -o "$store/SKILL.md"
+for f in build check explain rules; do
+  curl -fsSL "https://docs.oxabl.org/skill/references/$f.md" -o "$store/references/$f.md"
+done
+mkdir -p ~/.agents/skills ~/.claude/skills
+ln -s "$store" ~/.agents/skills/oxabl
+ln -s "$store" ~/.claude/skills/oxabl
+```
+
+`SKILL.md` links its reference files, which are served under `/skill/references/`. Fetch each one it names into `references/` beside it. You can also skip the store and put the files straight into `~/.agents/skills/oxabl/` or `~/.claude/skills/oxabl/`.
+
+A copy from the site carries the version of the oxabl release it was last synced from, which can trail the newest one by a day. oxabl counts a folder whose `SKILL.md` has the name `oxabl` and an `oxabl-version` as its own, so a later `oxabl skill install --check` reports such a copy as current only when your binary is that version, and `oxabl skill install --refresh` replaces it whole.
+
+## The docs as a source
+
+The skill is a short guide; these docs are the full reference, and the skill links to the command pages here. An agent can also read the docs directly:
+
+- [`/llms.txt`](https://docs.oxabl.org/llms.txt) lists every page with a one-line description and a link to its Markdown. `/llms-full.txt` is the whole site in one file.
+- Every page has a Markdown copy at its URL plus `index.md`.
+- A read-only MCP server at `/mcp` lets an agent list and fetch pages. [Use these docs from an agent](/agents/) shows how to connect it.
+
+Use the skill for how to run oxabl, and the docs for a flag, an exit code or a `oxabl.toml` key it doesn't cover.
+
+## Next
+
+- [`oxabl skill`](/toolchain/commands/skill/): every flag and the exit codes.
+- [Run oxabl in CI](/toolchain/workflows/ci/): the gate your agent's changes should pass.
+- [`oxabl check`](/toolchain/commands/check/): the command the skill points an agent at first.

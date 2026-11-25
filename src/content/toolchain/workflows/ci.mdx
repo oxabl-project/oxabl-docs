@@ -87,7 +87,7 @@ The [JSON shape](/toolchain/commands/check/#json-output) isn't a stable contract
 
 ## Use `check`, not `format --check`
 
-`oxabl format --check` also exits `1` when a file would change, but it's not a safe gate. With an `oxabl.toml` it can't read, it prints a warning, formats with the default style, and can pass. `oxabl check` refuses to run on that file and exits `2`, so the job fails and says why.
+`oxabl format --check` also exits `1` when a file would change, but it's not a safe gate. It doesn't lint, and a file it can't parse is left alone without failing the run. `oxabl check` reports that file as a `PARSE001` finding and exits `1`.
 
 ## Next
 

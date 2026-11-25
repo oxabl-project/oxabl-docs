@@ -8,7 +8,7 @@ sidebar:
 
 An oxabl cache keeps compiled ABL so it's compiled once. CI compiles a project and fills the cache. Every other CI job and every developer machine then fetches what's already compiled and compiles only what changed.
 
-The server runs today. The part of oxabl that fills and reads a cache ships with `oxabl build`, which isn't released yet. This page says what a cache does, then [what runs today](#what-runs-today).
+The server runs today. The part of oxabl that fills and reads a cache is in [`oxabl build`](/toolchain/commands/build/), which is released but experimental. This page says what a cache does, then [what runs today](#what-runs-today).
 
 ## Who does what
 
@@ -29,11 +29,11 @@ Before a machine uses an entry, it checks the entry's signature against the memb
 | The cache server, `oxabl-cache-server` | Runs today. One machine with SQLite and local disk, or several nodes on Postgres and an S3-compatible bucket. |
 | The operator command line, `oxabl-cache-admin` | Runs today. See [`oxabl-cache-admin`](/cache/operate/admin/). |
 | The container image | Builds from the repository today. A published image isn't available yet. See the [quick start](/cache/self-host/quick-start/). |
-| oxabl using the cache in a build | Not released. It arrives with `oxabl build`. |
+| oxabl using the cache in a build | Released, experimental. `oxabl build` has a local cache, and the release binary can also use a cache server. See [Caches](/toolchain/commands/build/#caches). |
 | The member command line, `oxabl-cache` | Not released. It will create members, sign in and rotate keys. |
 | A hosted cache service | Not available yet. |
 
-So today you can stand up a cache, create tenants and hand out tokens, ready for when `oxabl build` ships. These pages say when the rest is released.
+So today you can stand up a cache, create tenants and hand out tokens, and point `oxabl build` at it. These pages say when the rest is released.
 
 ## Next
 
