@@ -2,7 +2,7 @@
 name: oxabl
 description: Lint, format, analyse and compile Progress ABL (OpenEdge 4GL) code with the oxabl CLI. Use whenever you read, edit, review or refactor ABL source (.p, .w, .cls, .i, .v files) in an OpenEdge or Progress project; See its database effects (which tables a program reads, writes or locks), compile or build it with an OpenEdge AVM; or to set up oxabl.toml, include paths, a .df schema or a lint baseline.
 metadata:
-  oxabl-version: 6.1.0
+  oxabl-version: 8.0.0
 ---
 
 # oxabl
